@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Genetik-Labor</title>
+<link rel="stylesheet" href="engine/tresor.css?v=20261004b">
+</head>
+<body>
+<div id="preview-hint">Das Spiel wird geladen …<br><br>Bleibt diese Meldung stehen, öffnet den Link in Safari und ladet die Seite neu.<br>Hilft das nicht, fehlen Dateien: Bitte der Lehrkraft Bescheid geben.</div>
+<div class="start-bg" style="background-image:url('bilder/titel.jpg')"></div>
+<main id="start"></main>
+<script src="engine/tresor.js?v=20261004b"></script>
+<script>
+TRESOR.start({
+  base: '',
+  store: 'probe-hundezucht.v1',
+  build: 'Engine 1.6 · Probe V1',
+  filePrefix: 'probe',
+  title: 'Genetik-Labor',
+  subtitle: 'Probemission Hundezuchtverein',
+  landscape: true,
+  rooms: [
+    { title: 'Ins Labor', place: 'Mission P1 und P2', href: 'verein/index.html', color: '#7FDBD4' }
+  ]
+});
+</script>
+</body>
+</html>
