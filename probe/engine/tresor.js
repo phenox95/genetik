@@ -1,5 +1,5 @@
 /* =====================================================================
-   TRESOR-ENGINE · Grundsystem für „Der Tresor der Zeit“
+   TRESOR-ENGINE · Grundsystem (Kopie für das Genetik-Labor, Basis: „Der Tresor der Zeit“)
    Version 1.6 (Antworten werden gemischt, Schloss-Animation; Raum 1: Textkarten, Lückensatz mit Dreierprüfung, Einspruch, Markieren im Text, Nachfragen, Netz verbinden, Papier-Aufgabe, Notfall auf Papier, optionale Sprachaufnahmen) · für alle Räume gleich. Inhalte stehen in den Raumdateien.
    Probe-Fassung (Hundezuchtverein): Pfeilarten und Zählrückmeldung im Netz, Rätsel aus mehreren Teilen (combo),
    Messwerte ohne Auswertung (record), Satzteile markieren, eigene Akte-Reiter, Bild nach dem Schloss,
@@ -212,7 +212,7 @@
     r.onload = function () {
       try {
         var f = JSON.parse(r.result);
-        if (f.format !== 'tresor-spielstand') throw new Error('Das ist keine Tresor-Spielstand-Datei.');
+        if (f.format !== 'tresor-spielstand') throw new Error('Das ist keine Spielstand-Datei.');
         if ((f.store || 'tresor.v1') !== STORE_KEY) throw new Error('Diese Datei gehört zu einem anderen Spiel.');
         if (sha256('tresor-save|' + JSON.stringify(f.state)) !== f.check) throw new Error('Die Datei ist beschädigt oder wurde verändert.');
         S = f.state; persist(); done(null);
@@ -254,8 +254,6 @@
   var BASE = '';
   var FIGURES = {
     kemal: { name: 'Kemal Aydın', role: 'Präparator', img: 'figuren/kemal.jpg' },
-    wendt: { name: 'Dr. Johanna Wendt', role: 'Kuratorin', img: 'figuren/wendt.jpg' },
-    hallmann: { name: 'Viktor Hallmann', role: 'Händler', img: 'figuren/hallmann.jpg' }
   };
   var dialogStack = [];
   function openDialog(opts) {
@@ -301,7 +299,7 @@
   var ROOM = null;
   function openAkte(tab) {
     tab = tab || 'fall';
-    var tabs = [['fall', 'Fall'], ['funde', 'Fundstücke'], ['docs', 'Dokumente'], ['archiv', 'Archiv'], ['beweise', 'Beweisakte']];
+    var tabs = [['fall', 'Auftrag'], ['funde', 'Fundstücke'], ['docs', 'Dokumente'], ['archiv', 'Archiv'], ['beweise', 'Beweisakte']];
     /* Eigene Reiter (Probe: Zuchtbuch): erscheinen erst, wenn mindestens ein Dokument darin freigegeben ist */
     var extra = {};
     ((ROOM && ROOM.akteTabs) || []).forEach(function (t) {
@@ -318,7 +316,7 @@
       extra[tab].forEach(function (x) { var dc = ROOM.docs[x.doc]; content.appendChild(el('div', { class: 'akte-item doc-sheet' }, [el('strong', { text: dc.title })].concat(docBody(dc)))); });
     } else if (tab === 'fall') {
       content.appendChild(el('p', { class: 'muted', text: 'Team: ' + S.team.join(', ') }));
-      (ROOM && ROOM.caseText ? paras(ROOM.caseText(api)) : paras('Dr. Johanna Wendt ist verschwunden. Folgt ihren Spuren durch das Museum.')).forEach(function (p) { content.appendChild(p); });
+      (ROOM && ROOM.caseText ? paras(ROOM.caseText(api)) : []).forEach(function (p) { content.appendChild(p); });
       content.appendChild(el('p', { class: 'muted small', text: 'Notfall-Code (ins Logbuch schreiben): ' + makeCode() }));
     } else if (tab === 'funde') {
       if (!S.items.length) content.appendChild(empty('Noch keine Fundstücke.'));
@@ -338,10 +336,10 @@
       if (!keys.length) content.appendChild(empty('Noch keine Einträge.'));
       keys.forEach(function (k) { var a = S.answers[k]; content.appendChild(el('div', { class: 'akte-item' }, [el('strong', { text: a.title }), el('div', {}, paras(a.text))])); });
     } else if (tab === 'beweise') {
-      if (!S.evidence.length) content.appendChild(empty('Noch keine Beweisstücke für den Tresor.'));
+      if (!S.evidence.length) content.appendChild(empty('Noch keine Beweisstücke.'));
       S.evidence.forEach(function (ev) { content.appendChild(el('div', { class: 'akte-item evidence' }, [el('strong', { text: ev.title }), el('p', { text: ev.text })])); });
     }
-    var d = openDialog({ cls: 'dlg-akte', title: 'Forscherakte', body: [bar, content], focus: false });
+    var d = openDialog({ cls: 'dlg-akte', title: 'Laborakte', body: [bar, content], focus: false });
   }
 
   /* ---------------- Menü ---------------- */
@@ -535,7 +533,7 @@
     var nstage = el('div', { class: 'net-stage' + (p.stageClass ? ' ' + p.stageClass : '') });
     var svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('class', 'net-lines'); svg.setAttribute('aria-hidden', 'true');
     var mk = function (id, col) { return '<marker id="' + id + '" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L10,5 L0,10 z" fill="' + col + '"/></marker>'; };
-    svg.innerHTML = '<defs>' + mk('net-arr-' + hid, '#E6C27A') + [0, 1, 2].map(function (i) { return mk('net-arr-' + hid + '-k' + i, KIND_STYLE[i].color); }).join('') + '</defs>';
+    svg.innerHTML = '<defs>' + mk('net-arr-' + hid, '#7FDBD4') + [0, 1, 2].map(function (i) { return mk('net-arr-' + hid + '-k' + i, KIND_STYLE[i].color); }).join('') + '</defs>';
     nstage.appendChild(svg);
     var startText = p.kinds ? 'Tippt eine Karte an, von der ein Pfeil ausgeht, dann die Karte, auf die er zeigt, und wählt die Pfeilart.' : 'Tippt eine Karte an, von der ein Pfeil ausgeht, und dann die Karte, auf die er zeigt.';
     var nstatus = el('p', { class: 'muted small net-status', 'aria-live': 'polite', text: startText });
@@ -555,7 +553,7 @@
         if (!dx && !dy) return;
         var tA = Math.min(a.hw / (Math.abs(dx) || 1e-9), a.hh / (Math.abs(dy) || 1e-9));
         var tB = Math.min(b.hw / (Math.abs(dx) || 1e-9), b.hh / (Math.abs(dy) || 1e-9));
-        var st = e.kind != null ? KIND_STYLE[kindIdx[e.kind]] : null, col = st ? st.color : '#E6C27A';
+        var st = e.kind != null ? KIND_STYLE[kindIdx[e.kind]] : null, col = st ? st.color : '#7FDBD4';
         var ln = document.createElementNS(SVGNS, 'line');
         var x1 = a.x + dx * tA, y1 = a.y + dy * tA, x2 = b.x - dx * tB, y2 = b.y - dy * tB;
         ln.setAttribute('x1', x1); ln.setAttribute('y1', y1); ln.setAttribute('x2', x2); ln.setAttribute('y2', y2);
@@ -968,7 +966,7 @@
       } })]));
     }
     body.push(fb);
-    body.push(el('div', { class: 'row' }, [el('button', { class: 'btn ghost small', type: 'button', text: 'Forscherakte öffnen (nachschlagen)', onclick: function () { openAkte(); } })]));
+    body.push(el('div', { class: 'row' }, [el('button', { class: 'btn ghost small', type: 'button', text: 'Laborakte öffnen (nachschlagen)', onclick: function () { openAkte(); } })]));
     if (p.hints && p.hints.length) body.push(hintArea(p, function () { rescueDialog(p, d); }));
     d = openDialog({ cls: 'dlg-puzzle' + (refEl && p.type === 'freetext' ? ' has-ref' : ''), title: p.title, body: body, focus: p.type === 'code' || p.type === 'freetext' });
   }
@@ -1094,7 +1092,7 @@
         var dlg = openDialog({ cls: 'dlg-done', title: m.doneTitle || 'Mission abgeschlossen', body: paras(m.doneText || '').concat([
           nx ? el('p', { class: 'muted', text: (unlockMode() === 'auto' ? 'Für die nächste Mission beantwortet ihr zuerst das Do Now im Logbuch. Dann tippt unten auf „Nächste Mission“.' : 'Die nächste Mission schaltet eure Lehrkraft mit einem Code frei. Habt ihr den Code schon, tippt unten auf „Nächste Mission“.') }) : null,
           el('p', { class: 'muted', text: 'Notfall-Code für euer Logbuch: ' + makeCode() }),
-          el('div', { class: 'row end' }, [nx ? el('button', { class: 'btn ghost', text: 'Nächste Mission', onclick: function () { dlg.close(); lockScreen(nx, true); } }) : null, el('button', { class: 'btn ghost', text: 'Forscherakte', onclick: function () { dlg.close(); openAkte('beweise'); } }),
+          el('div', { class: 'row end' }, [nx ? el('button', { class: 'btn ghost', text: 'Nächste Mission', onclick: function () { dlg.close(); lockScreen(nx, true); } }) : null, el('button', { class: 'btn ghost', text: 'Laborakte', onclick: function () { dlg.close(); openAkte('beweise'); } }),
             el('button', { class: 'btn', text: 'Spielstand sichern', onclick: function () { saveFile(); toast('Gesichert. Ladet die Datei in WebWeaver hoch.', 6000); } })])]) });
       }
     });
@@ -1127,7 +1125,7 @@
       el('label', { class: 'check' }, [cb, ' Wir haben das Do Now im Logbuch beantwortet.']), fb,
       el('div', { class: 'row' }, [el('button', { class: 'btn', text: 'Mission starten', onclick: go }),
         closable ? el('button', { class: 'btn ghost small', text: 'Abbrechen', onclick: function () { d.close(); } }) : null,
-        el('a', { class: 'btn ghost small', href: BASE + 'index.html', text: 'Zurück zum Museumsplan' })])
+        el('a', { class: 'btn ghost small', href: BASE + 'index.html', text: 'Zurück zur Startseite' })])
     ] });
   }
   function lockScreen(m, closable) {
@@ -1142,7 +1140,7 @@
     var d = openDialog({ cls: 'dlg-lock', closable: closable ? undefined : false, title: ROOM.title, body: [
       el('p', { text: 'Die Tür ist verschlossen. Gebt den Code für „' + m.title + '“ ein.' }),
       el('div', { class: 'row' }, [inp, el('button', { class: 'btn', text: 'Aufschließen', onclick: go })]), fb,
-      el('div', { class: 'row' }, [closable ? el('button', { class: 'btn ghost small', text: 'Abbrechen', onclick: function () { d.close(); } }) : null, el('a', { class: 'btn ghost small', href: BASE + 'index.html', text: 'Zurück zum Museumsplan' })])
+      el('div', { class: 'row' }, [closable ? el('button', { class: 'btn ghost small', text: 'Abbrechen', onclick: function () { d.close(); } }) : null, el('a', { class: 'btn ghost small', href: BASE + 'index.html', text: 'Zurück zur Startseite' })])
     ] });
   }
   function intro(m) {
@@ -1161,7 +1159,7 @@
     S.items.forEach(function (it) { invEl.appendChild(el('button', { class: 'inv-item', text: it.label, onclick: function () { openAkte('funde'); } })); });
   }
   function buildRoom() {
-    document.title = ROOM.title + ' · ' + (ROOM.gameTitle || 'Der Tresor der Zeit');
+    document.title = ROOM.title + ' · ' + (ROOM.gameTitle || 'Genetik-Labor');
     var stage = el('div', { class: 'stage' + (ROOM.flashlight ? ' dark-mode' : '') });
     var bg = el('img', { class: 'scene-bg', src: ROOM.image, alt: ROOM.imageAlt || '' });
     /* Raumbild fehlt noch: Tippflächen mit Beschriftung zeigen, damit sich alles testen lässt */
@@ -1201,7 +1199,7 @@
           hotEls.forEach(function (h) { h.classList.add('reveal'); }); setTimeout(function () { hotEls.forEach(function (h) { h.classList.remove('reveal'); }); }, 2600);
         } }),
         el('button', { class: 'hud-btn', text: 'Akte', onclick: function () { openAkte(); } }),
-        el('button', { class: 'hud-btn', text: 'Menü', onclick: function () { openMenu(el('a', { class: 'btn ghost', href: BASE + 'index.html', text: 'Zum Museumsplan' })); } })
+        el('button', { class: 'hud-btn', text: 'Menü', onclick: function () { openMenu(el('a', { class: 'btn ghost', href: BASE + 'index.html', text: 'Zur Startseite' })); } })
       ])
     ]);
     invEl = el('div', { class: 'inv', 'aria-label': 'Fundstücke' });
@@ -1253,7 +1251,7 @@
     function render() {
       root.innerHTML = '';
       var st = load();
-      root.appendChild(el('div', { class: 'start-head' }, [el('h1', { text: def.title || 'Der Tresor der Zeit' }), el('p', { class: 'sub', text: def.subtitle != null ? def.subtitle : 'Ein Fall für das Junior-Forschungsteam des Museums' })]));
+      root.appendChild(el('div', { class: 'start-head' }, [el('h1', { text: def.title || 'Genetik-Labor' }), el('p', { class: 'sub', text: def.subtitle || '' })]));
       if (def.landscape && !document.querySelector('.rotate')) document.body.appendChild(el('div', { class: 'rotate start-rotate', text: 'Haltet das iPad bitte quer.' }));
       if (!st) {
         var inputs = [0, 1, 2].map(function (i) { return el('input', { type: 'text', autocomplete: 'off', placeholder: i < 2 ? 'Vorname ' + (i + 1) : 'Vorname 3 (optional)', 'aria-label': 'Vorname ' + (i + 1) }); });
@@ -1262,7 +1260,7 @@
         var codeIn = el('input', { type: 'text', autocomplete: 'off', autocapitalize: 'characters', placeholder: 'Notfall-Code, z. B. T1-…', 'aria-label': 'Notfall-Code' });
         root.appendChild(el('div', { class: 'start-panels' }, [
           el('section', { class: 'panel' }, [el('h2', { text: 'Neues Team' }), el('p', { class: 'muted', text: 'Nur Vornamen, keine weiteren Angaben.' })].concat(inputs).concat([
-            el('button', { class: 'btn', text: 'Fall übernehmen', onclick: function () {
+            el('button', { class: 'btn', text: 'Team anlegen', onclick: function () {
               var team = inputs.map(function (i) { return i.value.trim(); }).filter(Boolean);
               if (!team.length) { wrong(fb, 'Tragt mindestens einen Vornamen ein.'); return; }
               S = blank(team); persist(); sessionStorage.setItem(CONFIRM_KEY, '1'); render();

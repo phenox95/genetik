@@ -1,5 +1,5 @@
 /* ERZEUGT mit tools/build.js. Nicht von Hand ändern. */
-/* Probe · Der Hundezuchtverein · Missionen P1 und P2 (Stand 04.10.2026, Probe V1, Texte: Entwurf, nicht freigegeben)
+/* Genetik-Labor · Probemission Hundezuchtverein · Missionen P1 und P2 (Stand 04.10.2026, Probe V1, Texte: Entwurf, nicht freigegeben)
    QUELLE mit Klartext-Lösungen. NICHT auf GitHub. Daraus erzeugt: probe/verein/probe.js
      node tools/build.js quellen/probe.src.js probe/verein/probe.js
    ⟦FEHLT: …⟧ markiert Texte, die im Auftrag nicht stehen und noch geliefert werden müssen.
@@ -10,10 +10,10 @@ TRESOR.room({
   store: 'probe-hundezucht.v1',          /* eigener Speicherplatz: Probe und Tresor überschreiben sich nicht */
   build: 'Engine 1.6 · Probe V1',
   filePrefix: 'probe',
-  gameTitle: 'Probemission Hundezuchtverein',
-  title: 'Der Hundezuchtverein',
-  subtitle: 'Probe · Mission P1 und P2',
-  image: 'bilder/verein.jpg',            /* Platzhalter, Bild folgt */
+  gameTitle: 'Genetik-Labor',
+  title: 'Genetik-Labor',
+  subtitle: 'Probemission Hundezuchtverein · Mission P1 und P2',
+  image: 'bilder/labor.jpg',            /* Platzhalter, Bild folgt */
   imageAlt: '',
   size: [1024, 681],
   flashlight: false,
@@ -23,7 +23,7 @@ TRESOR.room({
   figures: { kemal: { name: 'Kemal Aydın', role: '', img: 'figuren/kemal.jpg' } },   /* ⟦FEHLT: Kemals Rolle im Verein⟧ */
 
   caseText: function (T) {
-    return '⟦FEHLT: Falltext für die Akte (Hundezuchtverein, Brief der Käuferin)⟧';
+    return '⟦FEHLT: Auftragstext für die Laborakte (Hundezuchtverein, Brief der Käuferin)⟧';
   },
 
   akteTabs: [
@@ -45,7 +45,7 @@ TRESOR.room({
       doneText: '⟦FEHLT: Abschlusstext P2⟧' }
   ],
 
-  /* Tippflächen: Lage VORLÄUFIG, wird an das Raumbild angepasst. Ohne Bild erscheinen sie beschriftet. */
+  /* Tippflächen im Labor: Lage VORLÄUFIG, wird an das Laborbild angepasst. Ohne Bild erscheinen sie beschriftet. */
   hotspots: [
     { id: 'brief', label: 'Brief der Käuferin', rect: [5, 30, 20, 40], states: [
       { if: { unlocked: 'mP1', notSolved: 'p1-brief' }, action: { type: 'puzzle', puzzle: 'p1-brief' } },

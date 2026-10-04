@@ -1,4 +1,4 @@
-genetik · Probemission „Hundezuchtverein“ · Engine 1.6 · Probe V1 · Stand 04.10.2026
+Genetik-Labor · Probemission „Hundezuchtverein“ · Engine 1.6 · Probe V1 · Stand 04.10.2026
 ==================================================================================
 
 WAS HIER LIEGT
@@ -21,7 +21,7 @@ UNABHÄNGIG VOM TRESOR
   probe_<Vornamen>_<Datum>.json. Eine Tresor-Datei lässt sich in der Probe nicht laden.
 
 BILDER (folgen, Platzhalter sind eingebaut)
-  probe/bilder/verein.jpg         Raumbild (bis dahin erscheinen beschriftete Tippflächen)
+  probe/bilder/labor.jpg          Laborbild (bis dahin erscheinen beschriftete Tippflächen)
   probe/bilder/p1-verpaarung.jpg  Foto nach dem Schloss in P1.2
   probe/bilder/p2-gartenbuch.jpg  Gartenbuch nach dem Schloss in P2.3
   probe/bilder/titel.jpg          Hintergrund der Startseite (optional)
