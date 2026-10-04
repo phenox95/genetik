@@ -1,0 +1,6 @@
+# Nicht auf GitHub: Quellen mit Klartext-Lösungen, Lösungsdatei, Auftrag
+*.src.js
+quellen/
+Loesung*
+Auftrag*
+node_modules/
