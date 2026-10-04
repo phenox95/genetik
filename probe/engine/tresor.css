@@ -322,3 +322,40 @@ table.data th { background: #1B2A2B; color: var(--brass-hi); font-family: var(--
 .nf-reply { margin-top: 8px; }
 @media (min-width: 700px) { .opts.grid2 { grid-template-columns: 1fr 1fr; } }
 @media (min-width: 700px) { .mappe { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; } .mappe details[open] { grid-column: 1 / -1; } }
+
+/* ---------- Probe (Hundezuchtverein): neue Bausteine ---------- */
+/* Markieren: dritte Kategorie und Satzteile in einer Zeile */
+.seg.mp2 { border: 2px solid #8FB3E0; background: rgba(143, 179, 224, .16); }
+.pen.pen2.on { border-color: #8FB3E0; }
+.markup-text.inline { display: block; line-height: 2.4; font-size: 1.15rem; }
+.markup-text.inline .seg { display: inline; width: auto; min-height: 0; padding: 6px 4px; margin: 0; border-radius: 6px; }
+.markup-text.inline .seg.mp0 { border: 0; border-bottom: 4px solid #E58C7E; background: rgba(229, 140, 126, .2); }
+/* Pfeilarten */
+.kind-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 8px; }
+.kind-bar[hidden] { display: none; }
+.kind-btn { min-height: 48px; border: 3px solid; background: #182224; }
+.kind-btn.k0 { border-color: #9CCB7B; color: #9CCB7B; }
+.kind-btn.k1 { border-color: #E58C7E; color: #E58C7E; border-style: dashed; }
+.kind-btn.k2 { border-color: #B9C3D0; color: #B9C3D0; border-style: dotted; }
+.net-lines .edge-label { font: 700 13px var(--sans, sans-serif); paint-order: stroke; stroke: #0B1113; stroke-width: 4px; }
+.net-node.to { border-color: #8FB3E0; background: #1B2632; }
+.net-stage.tall { height: 470px; }
+/* Mehrteilige Rätsel, Zahlen, Messwerte */
+.combo-part { margin: 8px 0 14px; padding: 4px 0 6px; border-bottom: 1px solid var(--line); }
+.num-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 1.1rem; }
+.code-in.num-in { width: 7em; text-align: center; }
+.record-rows { display: grid; gap: 10px; margin: 10px 0; }
+.record-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 1.1rem; }
+.record-row.waiting { opacity: .7; }
+.record-label { display: flex; align-items: center; gap: 8px; }
+/* Fehlende Bilder (Platzhalter, Bilder werden nachgeliefert) */
+.img-missing { display: flex; align-items: center; justify-content: center; min-height: 220px; color: var(--muted); border: 2px dashed var(--line); border-radius: 12px; background: #11181A; }
+.hot-label { display: none; }
+.no-img .scene { background: #1A2427; }
+.no-img .scene-bg { visibility: hidden; }
+.no-img .hot { border: 2px dashed var(--brass); background: rgba(230, 194, 122, .08); }
+.no-img .hot-label { display: flex; height: 100%; align-items: center; justify-content: center; text-align: center; padding: 6px; color: var(--ink); font-weight: 700; }
+.doc-sheet { margin-bottom: 14px; }
+/* Startseite nur quer */
+.start-rotate { position: fixed !important; }
+.net-node.label-card { width: auto; min-width: 0; padding: 6px 16px; border-style: dashed; font-style: italic; }

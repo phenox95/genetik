@@ -1,0 +1,36 @@
+genetik · Probemission „Hundezuchtverein“ · Engine 1.6 · Probe V1 · Stand 04.10.2026
+==================================================================================
+
+WAS HIER LIEGT
+  probe/index.html             Startseite der Probe (eigene Seite, eigener Spielstand)
+  probe/verein/index.html      Raum mit Mission P1 und P2
+  probe/verein/probe.js        Inhalte, ERZEUGT aus probe.src.js (Lösungen nur als Hash)
+  probe/engine/                Kopie der Engine 1.6 aus tresor-test, erweitert für die Probe
+  tools/build.js               macht aus probe.src.js die Datei probe.js
+
+NICHT auf GitHub (siehe .gitignore): quellen/ mit probe.src.js, Lösungsdatei und Testskript.
+
+ADRESSE (wenn GitHub Pages für dieses Projekt eingeschaltet ist)
+  https://phenox95.github.io/genetik/probe/
+  Neu anfangen: https://phenox95.github.io/genetik/probe/?neu=1
+  Fassung prüfen: im Raum „Menü“, unten steht „Fassung: Engine 1.6 · Probe V1“
+
+UNABHÄNGIG VOM TRESOR
+  Die Probe speichert unter „probe-hundezucht.v1“, der Tresor unter „tresor.v1“.
+  Beide können auf demselben iPad nebeneinander liegen. Spielstand-Dateien heißen
+  probe_<Vornamen>_<Datum>.json. Eine Tresor-Datei lässt sich in der Probe nicht laden.
+
+BILDER (folgen, Platzhalter sind eingebaut)
+  probe/bilder/verein.jpg         Raumbild (bis dahin erscheinen beschriftete Tippflächen)
+  probe/bilder/p1-verpaarung.jpg  Foto nach dem Schloss in P1.2
+  probe/bilder/p2-gartenbuch.jpg  Gartenbuch nach dem Schloss in P2.3
+  probe/bilder/titel.jpg          Hintergrund der Startseite (optional)
+
+NEU GEGENÜBER ENGINE 1.6 (nur in dieser Kopie, Raum 1 und 2 sind unberührt)
+  - Pfeile mit Pfeilart (stützt, widerspricht, nicht entscheidbar), Rückmeldung
+    „Zwei von drei Pfeilen stimmen“ ohne zu sagen, welche
+  - Rätsel aus mehreren Teilen mit Rückmeldung je Teil („Zahl stimmt, Pfeil noch nicht.“)
+  - Messwerte festhalten ohne Auswertung (Vorhersage wird gesperrt, dann Ergebnis)
+  - Markieren in drei Kategorien und in Satzteilen
+  - Akte-Reiter „Zuchtbuch“, Bild nach dem Schloss, eigener Speicherplatz pro Seite
+  - REGISTRY hinten ergänzt: mP1, mP2, p1-brief, p1-wuerfe, p2-hypothesen, p2-muenzen, p2-einspruch
