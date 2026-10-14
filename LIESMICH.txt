@@ -1,36 +1,33 @@
-Genetik-Labor · Probemission „Hundezuchtverein“ · Engine 1.6 · Probe V1 · Stand 04.10.2026
-==================================================================================
+Genetik-Labor · Probe-Raum „Das Zuchtbuch“ · Engine 1.9 · Probe V2 · Stand 14.10.2026
+=====================================================================================
 
 WAS HIER LIEGT
-  probe/index.html             Startseite der Probe (eigene Seite, eigener Spielstand)
-  probe/verein/index.html      Raum mit Mission P1 und P2
-  probe/verein/probe.js        Inhalte, ERZEUGT aus probe.src.js (Lösungen nur als Hash)
-  probe/engine/                Kopie der Engine 1.6 aus tresor-test, erweitert für die Probe
+  probe/index.html             Startseite (eigene Seite, eigener Spielstand)
+  probe/zuchtbuch/index.html   Raum „Das Zuchtbuch“ mit P1 (pm1) und P2 (pm2)
+  probe/zuchtbuch/probe.js     Inhalte, ERZEUGT aus probe.src.js (Lösungen nur als Hash)
+  probe/engine/                Kopie der Engine 1.9 aus tresor-test mit Probe-Zusätzen
   tools/build.js               macht aus probe.src.js die Datei probe.js
 
-NICHT auf GitHub (siehe .gitignore): quellen/ mit probe.src.js, Lösungsdatei und Testskript.
+NICHT auf GitHub (siehe .gitignore): quellen/ mit probe.src.js, Lösungsdatei, Testskript.
 
-ADRESSE (wenn GitHub Pages für dieses Projekt eingeschaltet ist)
+ADRESSE (GitHub Pages)
   https://phenox95.github.io/genetik/probe/
   Neu anfangen: https://phenox95.github.io/genetik/probe/?neu=1
-  Fassung prüfen: im Raum „Menü“, unten steht „Fassung: Engine 1.6 · Probe V1“
+  Fassung: im Raum „Menü“, unten „Fassung: Engine 1.9 · Probe V2“
 
 UNABHÄNGIG VOM TRESOR
-  Die Probe speichert unter „probe-hundezucht.v1“, der Tresor unter „tresor.v1“.
-  Beide können auf demselben iPad nebeneinander liegen. Spielstand-Dateien heißen
-  probe_<Vornamen>_<Datum>.json. Eine Tresor-Datei lässt sich in der Probe nicht laden.
+  Spielstand unter „probe-genetik.v2“ (Tresor: „tresor.v1“). Dateien heißen
+  probe_<Vornamen>_<Datum>.json. Eine Tresor-Datei lässt sich hier nicht laden.
 
-BILDER (folgen, Platzhalter sind eingebaut)
-  probe/bilder/labor.jpg          Laborbild (bis dahin erscheinen beschriftete Tippflächen)
-  probe/bilder/p1-verpaarung.jpg  Foto nach dem Schloss in P1.2
-  probe/bilder/p2-gartenbuch.jpg  Gartenbuch nach dem Schloss in P2.3
-  probe/bilder/titel.jpg          Hintergrund der Startseite (optional)
+BILDER (folgen, Platzhalter sind eingebaut, kein Text auf Bildern)
+  probe/bilder/buero.jpg      Raumbild „Büro des Zuchtvereins“ (bis dahin beschriftete Tippflächen)
+  probe/bilder/wurf-neu.jpg   nach dem Schloss in P1: zwei kurzhaarige Eltern, ein langhaariger Welpe
+  probe/bilder/titel.jpg      Hintergrund der Startseite (optional)
 
-NEU GEGENÜBER ENGINE 1.6 (nur in dieser Kopie, Raum 1 und 2 sind unberührt)
-  - Pfeile mit Pfeilart (stützt, widerspricht, nicht entscheidbar), Rückmeldung
-    „Zwei von drei Pfeilen stimmen“ ohne zu sagen, welche
-  - Rätsel aus mehreren Teilen mit Rückmeldung je Teil („Zahl stimmt, Pfeil noch nicht.“)
-  - Messwerte festhalten ohne Auswertung (Vorhersage wird gesperrt, dann Ergebnis)
-  - Markieren in drei Kategorien und in Satzteilen
-  - Akte-Reiter „Zuchtbuch“, Bild nach dem Schloss, eigener Speicherplatz pro Seite
-  - REGISTRY hinten ergänzt: mP1, mP2, p1-brief, p1-wuerfe, p2-hypothesen, p2-muenzen, p2-einspruch
+ZUSÄTZE GEGENÜBER ENGINE 1.9 (nur in dieser Kopie, Raum 1 und 2 unberührt)
+  - eigener Speicherplatz, Fassung, Titel, Dateiname (Einstellungen store, build, filePrefix)
+  - Tabelle: Kurzlabel je Spalte für die Rückmeldung (short: 'E1')
+  - onSolve.image: Bild zwischen message und message2
+  - Farben für Behauptung, Widerspruch und die vier Tabellenzustände; Laborfarben
+  - Notfall-Code erkennt Missions-IDs pm1, pm2 (vorher nur IDs mit „m…“)
+  - REGISTRY hinten ergänzt: pm1, pm2, dann die sieben Rätsel-IDs
