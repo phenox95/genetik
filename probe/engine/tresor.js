@@ -1,26 +1,13 @@
 /* =====================================================================
-   TRESOR-ENGINE · Grundsystem (Kopie für das Genetik-Labor, Basis: „Der Tresor der Zeit“)
-   Version 1.6 (Antworten werden gemischt, Schloss-Animation; Raum 1: Textkarten, Lückensatz mit Dreierprüfung, Einspruch, Markieren im Text, Nachfragen, Netz verbinden, Papier-Aufgabe, Notfall auf Papier, optionale Sprachaufnahmen) · für alle Räume gleich. Inhalte stehen in den Raumdateien.
-   Probe-Fassung (Hundezuchtverein): Pfeilarten und Zählrückmeldung im Netz, Rätsel aus mehreren Teilen (combo),
-   Messwerte ohne Auswertung (record), Satzteile markieren, eigene Akte-Reiter, Bild nach dem Schloss,
-   eigener Speicherplatz pro Seite (store), Fassung, Titel und Dateiname einstellbar.
+   TRESOR-ENGINE · Grundsystem für „Der Tresor der Zeit“
+   Version 1.9 (Raum 2: Untersuchungsobjekt, Widerspruch markieren, Tabelle ausfüllen; Antworten werden gemischt, Schloss-Animation; Raum 1: Textkarten, Lückensatz mit Dreierprüfung, Einspruch, Markieren im Text, Nachfragen, Netz verbinden, Papier-Aufgabe, Notfall auf Papier, optionale Sprachaufnahmen) · für alle Räume gleich. Inhalte stehen in den Raumdateien.
    ===================================================================== */
 (function () {
   'use strict';
 
   var ENGINE_VERSION = 1;
-  var ENGINE_BUILD = 'Engine 1.6 · 02.10.2026 · Raum 1 V2.1';   /* im Menü sichtbar: zeigt, welche Fassung der Browser wirklich geladen hat */
+  var ENGINE_BUILD = 'Engine 1.9 · 06.10.2026 · Raum 1 V2.2 · Raum 2 V1.1';   /* im Menü sichtbar: zeigt, welche Fassung der Browser wirklich geladen hat */
   var STORE_KEY = 'tresor.v1';
-  var CONFIRM_KEY = 'tresor.confirmed';
-  var FILE_PREFIX = 'tresor';
-  /* Eigene Seite (z. B. Probe): eigener Speicherplatz, damit sich Spielstände auf demselben iPad nicht überschreiben.
-     Alle Seiten unter phenox95.github.io teilen sich localStorage. */
-  function configure(def) {
-    if (def.store) { STORE_KEY = def.store; CONFIRM_KEY = def.store + '.confirmed'; }
-    if (def.build) ENGINE_BUILD = def.build;
-    if (def.filePrefix) FILE_PREFIX = def.filePrefix;
-    if (def.figures) for (var k in def.figures) FIGURES[k] = def.figures[k];
-  }
 
   /* ---------------------------------------------------------------
      REGISTER: Reihenfolge NIE ändern, nur hinten anhängen!
@@ -35,10 +22,12 @@
     'r1-3-einspruch', 'r1-3-kette', 'r1-3-belege', 'r1-3-schloss', 'r1-3-modellkritik', 'r1-3-population',
     /* ab Engine 1.4 */
     'r1-3-zahl',
-    /* Probe Hundezuchtverein (Probe V1) */
-    'mP1', 'mP2',
-    'p1-brief', 'p1-wuerfe',
-    'p2-hypothesen', 'p2-muenzen', 'p2-einspruch'
+    /* Raum 2 (ab Engine 1.8); m2.3 steht schon oben */
+    'm2.1', 'm2.2', 'm2.4',
+    'r2-1-schichten', 'r2-1-tiefe', 'r2-1-aussagekraft', 'r2-1-zettel', 'r2-1-folge', 'r2-1-luecken',
+    'r2-2-kriterium', 'r2-2-vergleich', 'r2-2-tabelle', 'r2-2-passung',
+    'r2-3-mosaik', 'r2-3-deutung', 'r2-3-frage', 'r2-3-kein-brueckentier',
+    'r2-4-zettel', 'r2-4-linien', 'r2-4-ausreden', 'r2-4-schloss', 'r2-4-verwerfung'
   ];
 
   /* ---------------- Hilfsfunktionen ---------------- */
@@ -153,7 +142,7 @@
     if (r.text) kids.push(el('div', { class: 'ref-item' }, paras(r.text)));
     (r.docs || []).forEach(function (id) {
       var dc = ROOM.docs[id]; if (!dc) return;
-      kids.push(el('div', { class: 'ref-item' }, [el('strong', { text: dc.title })].concat(docBody(dc))));
+      kids.push(el('div', { class: 'ref-item' }, [el('strong', { text: dc.title })].concat(docBody(dc, true))));
     });
     (r.answers || []).forEach(function (k) {
       var a = S.answers[k]; if (!a) return;
@@ -167,8 +156,9 @@
     var rows = t.rows.map(function (r) { return el('tr', {}, r.map(function (c) { return el('td', { text: c }); })); });
     return el('div', { class: 'tbl-wrap' }, [el('table', { class: 'data' }, [el('thead', {}, [head]), el('tbody', {}, rows)])]);
   }
-  function docBody(dc) {
-    return [audioPlayer(dc.audio, 'Aufnahme: ' + dc.title), el('div', { class: 'doc-text' }, paras(dc.text)), dc.table ? tableEl(dc.table) : null];
+  function docBody(dc, withImg) {
+    return [withImg && dc.image ? el('img', { class: 'doc-img', src: dc.image, alt: dc.title }) : null,
+      audioPlayer(dc.audio, 'Aufnahme: ' + dc.title), el('div', { class: 'doc-text' }, paras(dc.text)), dc.table ? tableEl(dc.table) : null];
   }
   function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 
@@ -181,7 +171,7 @@
   }
   function load() {
     /* Test-Hilfe: Adresse mit ?neu=1 öffnen löscht den Spielstand dieses Geräts und startet neu. */
-    try { if (/[?&]neu=1(&|$)/.test(location.search)) { localStorage.removeItem(STORE_KEY); sessionStorage.removeItem(CONFIRM_KEY); history.replaceState(null, '', location.pathname); } } catch (e) {}
+    try { if (/[?&]neu=1(&|$)/.test(location.search)) { localStorage.removeItem(STORE_KEY); sessionStorage.removeItem('tresor.confirmed'); history.replaceState(null, '', location.pathname); } } catch (e) {}
     try { var raw = localStorage.getItem(STORE_KEY); S = raw ? JSON.parse(raw) : null; } catch (e) { S = null; }
     return S;
   }
@@ -198,11 +188,11 @@
   /* ---------------- Spielstand-Datei ---------------- */
   function saveFile() {
     var body = JSON.stringify(S);
-    var file = { format: 'tresor-spielstand', engine: ENGINE_VERSION, store: STORE_KEY, saved: new Date().toISOString(),
+    var file = { format: 'tresor-spielstand', engine: ENGINE_VERSION, saved: new Date().toISOString(),
       state: S, check: sha256('tresor-save|' + body) };
     var names = S.team.map(function (n) { return n.replace(/[^A-Za-zÄÖÜäöüß0-9]/g, ''); }).join('-') || 'team';
     var blob = new Blob([JSON.stringify(file, null, 1)], { type: 'application/json' });
-    var a = el('a', { href: URL.createObjectURL(blob), download: FILE_PREFIX + '_' + names + '_' + today() + '.json' });
+    var a = el('a', { href: URL.createObjectURL(blob), download: 'tresor_' + names + '_' + today() + '.json' });
     document.body.appendChild(a); a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
     logEvent('gesichert');
@@ -212,8 +202,7 @@
     r.onload = function () {
       try {
         var f = JSON.parse(r.result);
-        if (f.format !== 'tresor-spielstand') throw new Error('Das ist keine Spielstand-Datei.');
-        if ((f.store || 'tresor.v1') !== STORE_KEY) throw new Error('Diese Datei gehört zu einem anderen Spiel.');
+        if (f.format !== 'tresor-spielstand') throw new Error('Das ist keine Tresor-Spielstand-Datei.');
         if (sha256('tresor-save|' + JSON.stringify(f.state)) !== f.check) throw new Error('Die Datei ist beschädigt oder wurde verändert.');
         S = f.state; persist(); done(null);
       } catch (e) { done(e.message || 'Die Datei konnte nicht gelesen werden.'); }
@@ -254,6 +243,9 @@
   var BASE = '';
   var FIGURES = {
     kemal: { name: 'Kemal Aydın', role: 'Präparator', img: 'figuren/kemal.jpg' },
+    wendt: { name: 'Dr. Johanna Wendt', role: 'Kuratorin', img: 'figuren/wendt.jpg' },
+    hallmann: { name: 'Viktor Hallmann', role: 'Händler', img: 'figuren/hallmann.jpg' },
+    sammler: { name: 'Ein Sammler', role: 'Fossilienbörse', img: null }
   };
   var dialogStack = [];
   function openDialog(opts) {
@@ -299,24 +291,15 @@
   var ROOM = null;
   function openAkte(tab) {
     tab = tab || 'fall';
-    var tabs = [['fall', 'Auftrag'], ['funde', 'Fundstücke'], ['docs', 'Dokumente'], ['archiv', 'Archiv'], ['beweise', 'Beweisakte']];
-    /* Eigene Reiter (Probe: Zuchtbuch): erscheinen erst, wenn mindestens ein Dokument darin freigegeben ist */
-    var extra = {};
-    ((ROOM && ROOM.akteTabs) || []).forEach(function (t) {
-      var docs = t.docs.filter(function (x) { return cond(x.if) && ROOM.docs[x.doc]; });
-      if (docs.length) { extra[t.id] = docs; tabs.splice(t.pos != null ? t.pos : 1, 0, [t.id, t.label]); }
-    });
-    if (ROOM && ROOM.hideTabs) tabs = tabs.filter(function (t) { return ROOM.hideTabs.indexOf(t[0]) === -1 || t[0] === tab; });
+    var tabs = [['fall', 'Fall'], ['funde', 'Fundstücke'], ['docs', 'Dokumente'], ['archiv', 'Archiv'], ['beweise', 'Beweisakte']];
     var content = el('div', { class: 'akte-content' });
     var bar = el('div', { class: 'tabs', role: 'tablist' }, tabs.map(function (t) {
       return el('button', { class: 'tab' + (t[0] === tab ? ' on' : ''), role: 'tab', text: t[1], onclick: function () { d.close(); openAkte(t[0]); } });
     }));
     function empty(t) { return el('p', { class: 'muted', text: t }); }
-    if (extra[tab]) {
-      extra[tab].forEach(function (x) { var dc = ROOM.docs[x.doc]; content.appendChild(el('div', { class: 'akte-item doc-sheet' }, [el('strong', { text: dc.title })].concat(docBody(dc)))); });
-    } else if (tab === 'fall') {
+    if (tab === 'fall') {
       content.appendChild(el('p', { class: 'muted', text: 'Team: ' + S.team.join(', ') }));
-      (ROOM && ROOM.caseText ? paras(ROOM.caseText(api)) : []).forEach(function (p) { content.appendChild(p); });
+      (ROOM && ROOM.caseText ? paras(ROOM.caseText(api)) : paras('Dr. Johanna Wendt ist verschwunden. Folgt ihren Spuren durch das Museum.')).forEach(function (p) { content.appendChild(p); });
       content.appendChild(el('p', { class: 'muted small', text: 'Notfall-Code (ins Logbuch schreiben): ' + makeCode() }));
     } else if (tab === 'funde') {
       if (!S.items.length) content.appendChild(empty('Noch keine Fundstücke.'));
@@ -336,10 +319,10 @@
       if (!keys.length) content.appendChild(empty('Noch keine Einträge.'));
       keys.forEach(function (k) { var a = S.answers[k]; content.appendChild(el('div', { class: 'akte-item' }, [el('strong', { text: a.title }), el('div', {}, paras(a.text))])); });
     } else if (tab === 'beweise') {
-      if (!S.evidence.length) content.appendChild(empty('Noch keine Beweisstücke.'));
+      if (!S.evidence.length) content.appendChild(empty('Noch keine Beweisstücke für den Tresor.'));
       S.evidence.forEach(function (ev) { content.appendChild(el('div', { class: 'akte-item evidence' }, [el('strong', { text: ev.title }), el('p', { text: ev.text })])); });
     }
-    var d = openDialog({ cls: 'dlg-akte', title: 'Laborakte', body: [bar, content], focus: false });
+    var d = openDialog({ cls: 'dlg-akte', title: 'Forscherakte', body: [bar, content], focus: false });
   }
 
   /* ---------------- Menü ---------------- */
@@ -363,7 +346,7 @@
       el('p', { text: 'Habt ihr euren Spielstand gesichert und in WebWeaver hochgeladen? Beim Beenden wird alles von diesem iPad gelöscht.' }),
       el('div', { class: 'row end' }, [
         el('button', { class: 'btn ghost', text: 'Zurück', onclick: function () { d.close(); } }),
-        el('button', { class: 'btn', text: 'Ja, beenden', onclick: function () { try { localStorage.removeItem(STORE_KEY); sessionStorage.removeItem(CONFIRM_KEY); } catch (e) {} location.href = BASE + 'index.html'; } })
+        el('button', { class: 'btn', text: 'Ja, beenden', onclick: function () { try { localStorage.removeItem(STORE_KEY); sessionStorage.removeItem('tresor.confirmed'); } catch (e) {} location.href = BASE + 'index.html'; } })
       ])
     ] });
   }
@@ -458,190 +441,11 @@
     return null;
   }
 
-  /* ---------- Rückmeldung je Teil, ohne Einzelheiten: „Deutung stimmt, Beobachtung noch nicht.“ ---------- */
-  function joinDe(list) { return list.length < 2 ? list.join('') : list.slice(0, -1).join(', ') + ' und ' + list[list.length - 1]; }
-  function partSentence(res) {
-    var ok = res.filter(function (r) { return r.ok; }), no = res.filter(function (r) { return !r.ok; });
-    var t;
-    if (!no.length) t = joinDe(ok.map(function (r) { return r.label; })) + (ok.length > 1 || ok[0].plural ? ' stimmen' : ' stimmt');
-    else if (!ok.length) t = joinDe(no.map(function (r) { return r.label; })) + (no.length > 1 || no[0].plural ? ' stimmen' : ' stimmt') + ' noch nicht';
-    else t = joinDe(ok.map(function (r) { return r.label; })) + (ok.length > 1 || ok[0].plural ? ' stimmen' : ' stimmt') + ', ' + joinDe(no.map(function (r) { return r.label; })) + ' noch nicht';
-    return t + '.';
-  }
-  var ZAHLWORT = ['Keiner', 'Einer', 'Zwei', 'Drei', 'Vier', 'Fünf', 'Sechs', 'Sieben', 'Acht'];
-  function countSentence(n, total, noun) {
-    var tot = ZAHLWORT[total] ? ZAHLWORT[total].toLowerCase() : String(total);
-    if (total === 1) return n ? 'Der ' + noun.one + ' stimmt.' : 'Der ' + noun.one + ' stimmt noch nicht.';
-    if (n === 0) return 'Keiner der ' + tot + ' ' + noun.many + ' stimmt.';
-    if (n === 1) return 'Einer von ' + tot + ' ' + noun.dat + ' stimmt.';
-    return (ZAHLWORT[n] || String(n)) + ' von ' + tot + ' ' + noun.dat + ' stimmen.';
-  }
-
-  /* ---------- Baustein: Markieren (Sätze oder Satzteile, mehrere Kategorien) ---------- */
-  function markupWidget(p, hid, fb) {
-    var marks = {}, pen = p.passes[0].id, penBtns = {}, passLabel = {}, passIdx = {};
-    p.passes.forEach(function (ps, i) { passLabel[ps.id] = ps.tag || ps.label; passIdx[ps.id] = i; });
-    var penRow = el('div', { class: 'pens', role: 'radiogroup', 'aria-label': 'Welche Markierung setzt ihr?' });
-    if (p.passes.length > 1) p.passes.forEach(function (ps) {
-      var pb = el('button', { class: 'pen pen' + passIdx[ps.id] + (ps.id === pen ? ' on' : ''), type: 'button', role: 'radio', 'aria-checked': ps.id === pen ? 'true' : 'false', onclick: function () {
-        pen = ps.id;
-        p.passes.forEach(function (q) { penBtns[q.id].classList.toggle('on', q.id === pen); penBtns[q.id].setAttribute('aria-checked', q.id === pen ? 'true' : 'false'); });
-      } });
-      pb.appendChild(el('strong', { text: ps.label })); if (ps.hint) pb.appendChild(el('small', { text: ps.hint }));
-      penBtns[ps.id] = pb; penRow.appendChild(pb);
-    });
-    var flow = el('div', { class: 'markup-text' + (p.inline ? ' inline' : '') });
-    p.segments.forEach(function (sg) {
-      var tagEl = el('span', { class: 'seg-tag', 'aria-hidden': 'true' });
-      var seg = el('button', { class: 'seg', type: 'button', 'aria-pressed': 'false', onclick: function () {
-        if (marks[sg.id] === pen) delete marks[sg.id]; else marks[sg.id] = pen;
-        paintSeg(); fb.textContent = '';
-      } }, [sg.nr ? el('span', { class: 'seg-nr', text: sg.nr }) : null, sg.nr ? ' ' : null, el('span', { class: 'seg-text', text: sg.text }), tagEl]);
-      function paintSeg() {
-        var m = marks[sg.id];
-        seg.className = 'seg' + (m ? ' m-' + m + ' mp' + passIdx[m] : ''); seg.setAttribute('aria-pressed', m ? 'true' : 'false');
-        tagEl.textContent = m && !p.inline ? ' [' + passLabel[m] + ']' : '';
-        seg.setAttribute('aria-label', (sg.nr ? sg.nr + ': ' : '') + sg.text + (m ? ' (markiert als ' + passLabel[m] + ')' : ' (nicht markiert)'));
-      }
-      paintSeg();
-      flow.appendChild(seg); flow.appendChild(document.createTextNode(' '));
-    });
-    var ids = function () { return Object.keys(marks); };
-    function ansFor(ps) { return ps.id + '=' + ids().filter(function (k) { return marks[k] === ps.id; }).sort().join('-'); }
-    return {
-      nodes: [p.passes.length > 1 ? penRow : null, flow, p.note ? el('p', { class: 'muted small markup-note', text: p.note }) : null],
-      any: function () { return ids().length > 0; },
-      full: function () { return p.passes.map(ansFor).join(';'); },
-      passes: function () { return p.passes.map(function (ps) { return { label: ps.tag || ps.label, ok: check(hid + '-' + ps.id, ansFor(ps), p.passHash[ps.id]) }; }); }
-    };
-  }
-
-  /* ---------- Baustein: Zahl eintragen ---------- */
-  function numberWidget(p, fb) {
-    var inp = el('input', { type: 'text', class: 'code-in num-in', inputmode: 'numeric', autocomplete: 'off', spellcheck: 'false', 'aria-label': p.ariaLabel || p.label || 'Zahl' });
-    inp.addEventListener('input', function () { fb.textContent = ''; });
-    return { nodes: [el('label', { class: 'num-row' }, [p.before ? el('span', { text: p.before + ' ' }) : null, inp, p.after ? el('span', { text: ' ' + p.after }) : null])],
-      value: function () { return String(inp.value).trim().replace(/\s+/g, ' '); } };
-  }
-
-  /* ---------- Baustein: Pfeile zwischen Karten, optional mit Pfeilart ---------- */
-  var KIND_STYLE = { 0: { color: '#9CCB7B', dash: '' }, 1: { color: '#E58C7E', dash: '10 6' }, 2: { color: '#B9C3D0', dash: '3 6' } };
-  function netWidget(p, hid, fb) {
-    var edges = [], from = null, pending = null, nodeEls = {}, SVGNS = 'http://www.w3.org/2000/svg';
-    var kinds = p.kinds ? seededShuffle(p.kinds, hid + '#kinds') : null, kindIdx = {}, kindLabel = {};
-    (p.kinds || []).forEach(function (k, i) { kindIdx[k.id] = i; kindLabel[k.id] = k.label; });
-    var nstage = el('div', { class: 'net-stage' + (p.stageClass ? ' ' + p.stageClass : '') });
-    var svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('class', 'net-lines'); svg.setAttribute('aria-hidden', 'true');
-    var mk = function (id, col) { return '<marker id="' + id + '" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L10,5 L0,10 z" fill="' + col + '"/></marker>'; };
-    svg.innerHTML = '<defs>' + mk('net-arr-' + hid, '#7FDBD4') + [0, 1, 2].map(function (i) { return mk('net-arr-' + hid + '-k' + i, KIND_STYLE[i].color); }).join('') + '</defs>';
-    nstage.appendChild(svg);
-    var startText = p.kinds ? 'Tippt eine Karte an, von der ein Pfeil ausgeht, dann die Karte, auf die er zeigt, und wählt die Pfeilart.' : 'Tippt eine Karte an, von der ein Pfeil ausgeht, und dann die Karte, auf die er zeigt.';
-    var nstatus = el('p', { class: 'muted small net-status', 'aria-live': 'polite', text: startText });
-    var kindBar = el('div', { class: 'kind-bar' }); kindBar.hidden = true;
-    var elist = el('div', { class: 'net-edges' });
-    /* Name in der Pfeilliste: Kürzel, wenn es eindeutig ist, sonst der Kartentext */
-    var tagCount = {}; p.items.forEach(function (it) { if (it.tag) tagCount[it.tag] = (tagCount[it.tag] || 0) + 1; });
-    var tagOf = {}; p.items.forEach(function (it) { tagOf[it.id] = it.tag && tagCount[it.tag] === 1 ? it.tag : it.label; });
-    function parse(k) { var kk = k.split(':'), ab = kk[0].split('>'); return { a: ab[0], b: ab[1], kind: kk[1] || null }; }
-    function paintNodes() { p.items.forEach(function (it) { nodeEls[it.id].classList.toggle('from', from === it.id || (pending && pending.a === it.id)); nodeEls[it.id].classList.toggle('to', !!(pending && pending.b === it.id)); }); }
-    function redraw() {
-      [].slice.call(svg.querySelectorAll('line,text')).forEach(function (l) { l.remove(); });
-      var sr = nstage.getBoundingClientRect();
-      function box(id) { var r = nodeEls[id].getBoundingClientRect(); return { x: r.left - sr.left + r.width / 2, y: r.top - sr.top + r.height / 2, hw: r.width / 2 + 5, hh: r.height / 2 + 5 }; }
-      edges.forEach(function (k) {
-        var e = parse(k), a = box(e.a), b = box(e.b), dx = b.x - a.x, dy = b.y - a.y;
-        if (!dx && !dy) return;
-        var tA = Math.min(a.hw / (Math.abs(dx) || 1e-9), a.hh / (Math.abs(dy) || 1e-9));
-        var tB = Math.min(b.hw / (Math.abs(dx) || 1e-9), b.hh / (Math.abs(dy) || 1e-9));
-        var st = e.kind != null ? KIND_STYLE[kindIdx[e.kind]] : null, col = st ? st.color : '#7FDBD4';
-        var ln = document.createElementNS(SVGNS, 'line');
-        var x1 = a.x + dx * tA, y1 = a.y + dy * tA, x2 = b.x - dx * tB, y2 = b.y - dy * tB;
-        ln.setAttribute('x1', x1); ln.setAttribute('y1', y1); ln.setAttribute('x2', x2); ln.setAttribute('y2', y2);
-        ln.setAttribute('stroke', col); ln.setAttribute('stroke-width', '3'); if (st && st.dash) ln.setAttribute('stroke-dasharray', st.dash);
-        ln.setAttribute('marker-end', 'url(#net-arr-' + hid + (st ? '-k' + kindIdx[e.kind] : '') + ')');
-        svg.appendChild(ln);
-        if (e.kind != null) {
-          var tx = document.createElementNS(SVGNS, 'text');
-          tx.setAttribute('x', (x1 + x2) / 2); tx.setAttribute('y', (y1 + y2) / 2 - 6); tx.setAttribute('text-anchor', 'middle'); tx.setAttribute('class', 'edge-label');
-          tx.setAttribute('fill', col); tx.textContent = kindLabel[e.kind];
-          svg.appendChild(tx);
-        }
-      });
-    }
-    function edgeText(k) { var e = parse(k); return tagOf[e.a] + ' → ' + tagOf[e.b] + (e.kind ? ' (' + kindLabel[e.kind] + ')' : ''); }
-    function renderEdges() {
-      elist.innerHTML = '';
-      if (!edges.length) { elist.appendChild(el('p', { class: 'muted small', text: 'Noch keine Pfeile gesetzt.' })); return; }
-      edges.forEach(function (k) {
-        elist.appendChild(el('button', { class: 'btn ghost small edge', type: 'button', 'aria-label': 'Pfeil ' + edgeText(k) + ' entfernen', text: edgeText(k) + '  ✕', onclick: function () {
-          edges.splice(edges.indexOf(k), 1); redraw(); renderEdges(); fb.textContent = '';
-        } }));
-      });
-      elist.appendChild(el('button', { class: 'btn ghost small', type: 'button', text: 'Alle Pfeile löschen', onclick: function () { edges = []; from = null; pending = null; kindBar.hidden = true; paintNodes(); redraw(); renderEdges(); fb.textContent = ''; } }));
-    }
-    function addEdge(a, b, kind) {
-      var key = a + '>' + b + (kind ? ':' + kind : '');
-      edges = edges.filter(function (k) { var e = parse(k); return !(e.a === a && e.b === b) && !(p.onePerSource && e.a === a); });
-      edges.push(key);
-      nstatus.textContent = 'Pfeil gesetzt: ' + edgeText(key) + '.';
-      from = null; pending = null; kindBar.hidden = true; paintNodes(); redraw(); renderEdges(); fb.textContent = '';
-    }
-    if (kinds) {
-      kinds.forEach(function (k) {
-        kindBar.appendChild(el('button', { class: 'btn kind-btn k' + kindIdx[k.id], type: 'button', text: k.label, onclick: function () { if (pending) addEdge(pending.a, pending.b, k.id); } }));
-      });
-      kindBar.appendChild(el('button', { class: 'btn ghost small', type: 'button', text: 'Abbrechen', onclick: function () { pending = null; kindBar.hidden = true; paintNodes(); nstatus.textContent = startText; } }));
-    }
-    p.items.forEach(function (it) {
-      var pos = (p.layout && p.layout[it.id]) || [50, 50];
-      var nb = el('button', { class: 'net-node' + (it.cls ? ' ' + it.cls : ''), type: 'button', style: 'left:' + pos[0] + '%;top:' + pos[1] + '%', onclick: function () {
-        if (pending) { nstatus.textContent = 'Wählt zuerst die Pfeilart oder brecht ab.'; return; }
-        if (!from) { from = it.id; paintNodes(); nstatus.textContent = 'Der Pfeil beginnt bei ' + tagOf[it.id] + '. Tippt jetzt die Karte, auf die er zeigt.'; return; }
-        if (from === it.id) { from = null; paintNodes(); nstatus.textContent = 'Abgebrochen. Tippt eine Karte an, von der ein Pfeil ausgeht.'; return; }
-        if (kinds) { pending = { a: from, b: it.id }; from = null; paintNodes(); kindBar.hidden = false; nstatus.textContent = 'Pfeil ' + tagOf[pending.a] + ' → ' + tagOf[pending.b] + ': Welche Pfeilart?'; return; }
-        addEdge(from, it.id, null);
-      } }, [it.tag ? el('strong', { text: it.tag }) : null, el('span', { text: it.label })]);
-      nodeEls[it.id] = nb; nstage.appendChild(nb);
-    });
-    renderEdges();
-    var noun = p.noun || { one: 'Pfeil', many: 'Pfeile', dat: 'Pfeilen' };
-    return {
-      nodes: [nstage, nstatus, kindBar, elist],
-      edges: function () { return edges; },
-      start: function () {
-        setTimeout(redraw, 60); setTimeout(redraw, 400);
-        if (window.ResizeObserver) { try { new ResizeObserver(function () { redraw(); }).observe(nstage); } catch (e) {} }
-      },
-      /* Zählt richtige Pfeile einzeln (je Pfeil ein Hash), sagt aber nicht, welche */
-      evaluate: function () {
-        var good = edges.filter(function (k) { return check(hid + '-e', k, p.edgeHash); }).length;
-        var total = p.edgeCount;
-        var shown = Math.min(good, total);
-        return { ok: good === total && edges.length === total, countText: countSentence(shown, total, noun),
-          extra: edges.length > total ? 'Mindestens ein Pfeil ist zu viel.' : (edges.length < total ? 'Es fehlt noch mindestens ein Pfeil.' : '') };
-      },
-      directionMsg: function () {
-        var sorted = edges.slice().sort(), msg = null;
-        if (check(hid, sorted.join(';'), p.hash)) return null;
-        var rv = function (k) { var ab = k.split('>'); return ab[1] + '>' + ab[0]; };
-        var okSet = function (l) { return check(hid, l.slice().sort().join(';'), p.hash); };
-        if (okSet(edges.map(rv))) msg = 'Alle Pfeile zeigen in die falsche Richtung.';
-        else {
-          for (var q = 0; q < edges.length && !msg; q++) { var c = edges.slice(); c[q] = rv(c[q]); if (okSet(c)) msg = 'Ein Pfeil zeigt in die falsche Richtung.'; }
-          if (!msg && p.edgeCount && edges.length < p.edgeCount) msg = 'Es fehlt noch mindestens eine Verbindung.';
-          else if (!msg && p.edgeCount && edges.length > p.edgeCount) msg = 'Mindestens ein Pfeil ist zu viel.';
-        }
-        return msg ? 'Nichts passiert. ' + msg : null;
-      }
-    };
-  }
-
   function openPuzzle(p) {
     if (isSolved(p.id)) return;
     logEvent('öffnet ' + p.id);
     var fb = watchFb(el('div', { class: 'feedback', role: 'status' }));
     var body = [el('div', { class: 'prompt' }, paras(p.prompt))];
-    if (p.say) body.push(figureBlock(p.say.from, p.say.text));
     var refEl = refBlock(p); if (refEl) body.push(refEl);
     var d;
     function attempt(ans, msg) {
@@ -742,17 +546,18 @@
     }
     if (p.type === 'cloze') {
       var picks = {};
-      var line = el('div', { class: 'cloze' });
+      var line = el('div', { class: 'cloze' }), row = el('div', { class: 'cloze-row' }); line.appendChild(row);
       var order = [];
       p.parts.forEach(function (part) {
-        if (typeof part === 'string') { line.appendChild(document.createTextNode(part)); return; }
-        if (part.strong) { line.appendChild(el('strong', { text: part.strong })); return; }
+        if (part && part.nl) { row = el('div', { class: 'cloze-row' }); line.appendChild(row); return; }
+        if (typeof part === 'string') { row.appendChild(document.createTextNode(part)); return; }
+        if (part.strong) { row.appendChild(el('strong', { text: part.strong })); return; }
         order.push(part.gap);
-        var sl = el('select', { class: 'gap', 'aria-label': part.label || ('Lücke ' + order.length) });
+        var sl = el('select', { class: 'gap' + (part.block ? ' block' : ''), 'aria-label': part.label || ('Lücke ' + order.length) });
         sl.appendChild(el('option', { value: '', text: '… auswählen …' }));
         seededShuffle(p.gaps[part.gap], p.id + part.gap).forEach(function (o) { sl.appendChild(el('option', { value: o.id, text: o.label })); });
         sl.addEventListener('change', function () { picks[part.gap] = sl.value; fb.textContent = ''; });
-        line.appendChild(sl);
+        row.appendChild(sl);
       });
       body.push(line, el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Satz prüfen', onclick: function () {
         if (order.some(function (g) { return !picks[g]; })) { wrong(fb, 'Füllt zuerst alle Lücken aus.'); return; }
@@ -811,23 +616,50 @@
 
     /* ---------- Markieren im Text (ab 1.4) ---------- */
     if (p.type === 'markup') {
-      var mw = markupWidget(p, p.id, fb);
-      body.push.apply(body, mw.nodes.concat([el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Markierungen prüfen', onclick: function () {
-        if (!mw.any()) { wrong(fb, 'Markiert zuerst mindestens eine Stelle.'); return; }
-        var full = mw.full(), msg = null;
+      var marks = {}, pen = p.passes[0].id, penBtns = {}, passLabel = {};
+      p.passes.forEach(function (ps) { passLabel[ps.id] = ps.tag || ps.label; });
+      var penRow = el('div', { class: 'pens', role: 'radiogroup', 'aria-label': 'Welche Markierung setzt ihr?' });
+      p.passes.forEach(function (ps) {
+        var pb = el('button', { class: 'pen' + (ps.id === pen ? ' on' : ''), type: 'button', role: 'radio', 'aria-checked': ps.id === pen ? 'true' : 'false', onclick: function () {
+          pen = ps.id;
+          p.passes.forEach(function (q) { penBtns[q.id].classList.toggle('on', q.id === pen); penBtns[q.id].setAttribute('aria-checked', q.id === pen ? 'true' : 'false'); });
+        } });
+        pb.appendChild(el('strong', { text: ps.label })); if (ps.hint) pb.appendChild(el('small', { text: ps.hint }));
+        penBtns[ps.id] = pb; penRow.appendChild(pb);
+      });
+      var flow = el('div', { class: 'markup-text' });
+      p.segments.forEach(function (sg) {
+        var tagEl = el('span', { class: 'seg-tag', 'aria-hidden': 'true' });
+        var seg = el('button', { class: 'seg', type: 'button', 'aria-pressed': 'false', onclick: function () {
+          if (marks[sg.id] === pen) delete marks[sg.id]; else marks[sg.id] = pen;
+          paintSeg(); fb.textContent = '';
+        } }, [el('span', { class: 'seg-nr', text: sg.nr }), ' ', el('span', { class: 'seg-text', text: sg.text }), tagEl]);
+        function paintSeg() {
+          var m = marks[sg.id];
+          seg.className = 'seg' + (m ? ' m-' + m : ''); seg.setAttribute('aria-pressed', m ? 'true' : 'false');
+          tagEl.textContent = m ? ' [' + passLabel[m] + ']' : '';
+          seg.setAttribute('aria-label', sg.nr + ': ' + sg.text + (m ? ' (markiert als ' + passLabel[m] + ')' : ' (nicht markiert)'));
+        }
+        paintSeg();
+        flow.appendChild(seg); flow.appendChild(document.createTextNode(' '));
+      });
+      body.push(penRow, flow, p.note ? el('p', { class: 'muted small markup-note', text: p.note }) : null, el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Markierungen prüfen', onclick: function () {
+        var ids = Object.keys(marks);
+        if (!ids.length) { wrong(fb, 'Markiert zuerst mindestens eine Stelle.'); return; }
+        function ansFor(ps) { return ps.id + '=' + ids.filter(function (k) { return marks[k] === ps.id; }).sort().join('-'); }
+        var full = p.passes.map(ansFor).join(';'), msg = null;
         /* Rückmeldung je Durchgang (nicht je Satz): sagt, welcher Durchgang noch nicht stimmt, ohne einzelne Sätze zu verraten */
         if (p.passHash && !check(p.id, full, p.hash)) {
-          var res = mw.passes();
-          if (p.fbStyle === 'satz') msg = partSentence(res);
-          else msg = 'Nichts passiert. ' + res.map(function (r) { return r.label + ': ' + (r.ok ? 'stimmt' : 'stimmt noch nicht'); }).join(' · ') + '.';
+          msg = 'Nichts passiert. ' + p.passes.map(function (ps) { return ps.tag + ': ' + (check(p.id + '-' + ps.id, ansFor(ps), p.passHash[ps.id]) ? 'stimmt' : 'stimmt noch nicht'); }).join(' · ') + '.';
         }
         attempt(full, msg);
-      } })])]));
+      } })]));
     }
     /* ---------- Nachfragen (ab 1.4) ---------- */
     if (p.type === 'nachfragen') {
       var nsel = {};
-      var annBox = el('div', { class: 'annahmen' }, [el('strong', { text: p.optionsTitle || 'Annahmen' })].concat(p.options.map(function (o) { return el('p', { text: o.full || o.label }); })));
+      var nOpts = p.shuffleOptions ? seededShuffle(p.options, p.id, true) : p.options;
+      var annBox = el('div', { class: 'annahmen' }, [el('strong', { text: p.optionsTitle || 'Annahmen' })].concat(nOpts.map(function (o) { return el('p', { text: o.full || o.label }); })));
       var nrows = el('div', { class: 'nf-rows' });
       p.rows.forEach(function (r) {
         var replyBox = el('div', { class: 'nf-reply', 'aria-live': 'polite' });
@@ -836,103 +668,279 @@
           if (asked) return; asked = true; askBtn.disabled = true; logEvent('nachfragen ' + p.id + ' ' + r.id);
           replyBox.appendChild(figureBlock(p.from || 'hallmann', r.reply));
         } });
-        var sl = el('select', { class: 'gap', 'aria-label': 'Annahme für ' + r.say.split(' ')[0] });
-        sl.appendChild(el('option', { value: '', text: '… Annahme wählen …' }));
-        p.options.forEach(function (o) { sl.appendChild(el('option', { value: o.id, text: o.label })); });
+        var sl = el('select', { class: 'gap', 'aria-label': (p.selectAria || 'Annahme für ') + r.say.split(' ')[0] });
+        sl.appendChild(el('option', { value: '', text: p.selectPlaceholder || '… Annahme wählen …' }));
+        nOpts.forEach(function (o) { sl.appendChild(el('option', { value: o.id, text: o.label })); });
         sl.addEventListener('change', function () { nsel[r.id] = sl.value; fb.textContent = ''; });
         nrows.appendChild(el('div', { class: 'nf-row' }, [el('p', { class: 'nf-say', text: r.say }), el('div', { class: 'nf-line' }, [askBtn, el('label', { class: 'nf-label' }, [(p.selectLabel || 'Setzt voraus: '), sl])]), replyBox]));
       });
       body.push(annBox, nrows, el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Annahmen prüfen', onclick: function () {
-        if (p.rows.some(function (r) { return !nsel[r.id]; })) { wrong(fb, 'Wählt zuerst für jede Deutung eine Annahme.'); return; }
+        if (p.rows.some(function (r) { return !nsel[r.id]; })) { wrong(fb, p.missingText || 'Wählt zuerst für jede Deutung eine Annahme.'); return; }
         attempt(p.rows.map(function (r) { return r.id + '=' + nsel[r.id]; }).sort().join(';'));
       } })]));
     }
     /* ---------- Netz verbinden (ab 1.4) ---------- */
     if (p.type === 'net') {
-      var nw = netWidget(p, p.id, fb);
-      body.push.apply(body, nw.nodes.concat([el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Verbindungen prüfen', onclick: function () {
-        if (nw.edges().length < (p.minEdges || 3)) { wrong(fb, 'Setzt zuerst Pfeile zwischen den Karten.'); return; }
-        if (p.edgeHash) {
-          var r = nw.evaluate();
-          if (r.ok) { d.close(); solve(p, {}); return; }
-          logEvent('fehlversuch ' + p.id); wrong(fb, r.countText + (r.extra ? ' ' + r.extra : '')); return;
-        }
-        attempt(nw.edges().slice().sort().join(';'), nw.directionMsg());
-      } })])]));
-      nw.start();
-    }
-    /* ---------- Rätsel aus mehreren Teilen (Probe): Zahl, Pfeile, Markierung, Rückmeldung je Teil ---------- */
-    if (p.type === 'combo') {
-      var widgets = p.parts.map(function (part) {
-        var hid = p.id + '-' + part.id, w;
-        if (part.kind === 'number') w = numberWidget(part, fb);
-        else if (part.kind === 'net') w = netWidget(part, hid, fb);
-        else if (part.kind === 'markup') w = markupWidget(part, hid, fb);
-        var nodes = [part.heading ? el('h3', { text: part.heading }) : null].concat(w.nodes);
-        return { part: part, hid: hid, w: w, box: el('div', { class: 'combo-part' }, nodes) };
-      });
-      widgets.forEach(function (x) { body.push(x.box); });
-      body.push(el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Prüfen', onclick: function () {
-        for (var i = 0; i < widgets.length; i++) {
-          var x = widgets[i];
-          if (x.part.kind === 'number' && !x.w.value()) { wrong(fb, 'Tragt zuerst eine Zahl ein.'); return; }
-          if (x.part.kind === 'net' && !x.w.edges().length) { wrong(fb, 'Zieht zuerst mindestens einen Pfeil.'); return; }
-          if (x.part.kind === 'markup' && !x.w.any()) { wrong(fb, 'Markiert zuerst mindestens eine Stelle.'); return; }
-        }
-        var res = [], counts = [];
-        widgets.forEach(function (x) {
-          var pt = x.part;
-          if (pt.kind === 'number') res.push({ label: pt.label, plural: pt.plural, ok: check(x.hid, x.w.value(), pt.hash) });
-          else if (pt.kind === 'markup') res.push({ label: pt.label, plural: pt.plural, ok: check(x.hid, x.w.full(), pt.hash) });
-          else if (pt.kind === 'net') {
-            var r = x.w.evaluate();
-            if (pt.count && !r.ok) counts.push(r.countText + (r.extra ? ' ' + r.extra : ''));
-            else res.push({ label: pt.label, plural: pt.plural, ok: r.ok });
-          }
-        });
-        if (!counts.length && res.every(function (r) { return r.ok; })) { d.close(); solve(p, {}); return; }
-        logEvent('fehlversuch ' + p.id);
-        S.vars.teile = S.vars.teile || []; S.vars.teile.push({ t: new Date().toISOString(), id: p.id, ok: res.filter(function (r) { return r.ok; }).map(function (r) { return r.label; }) }); persist();
-        wrong(fb, [res.length ? partSentence(res) : null].concat(counts).filter(Boolean).join(' '));
-      } })]));
-      widgets.forEach(function (x) { if (x.w.start) x.w.start(); });
-    }
-    /* ---------- Messwerte festhalten, ohne Auswertung (Probe) ---------- */
-    if (p.type === 'record') {
-      S.vars.records = S.vars.records || {};
-      var rec = S.vars.records[p.id] = S.vars.records[p.id] || {};
-      var rows = el('div', { class: 'record-rows' });
-      function renderRec() {
-        rows.innerHTML = '';
-        var open = true;
-        p.fields.forEach(function (f) {
-          var done = rec[f.id] != null;
-          if (done) { rows.appendChild(el('div', { class: 'record-row done' }, [el('strong', { text: f.label + ': ' }), String(rec[f.id]) + (f.suffix ? ' ' + f.suffix : ''), el('span', { class: 'muted small', text: '  (gespeichert)' })])); return; }
-          if (!open) { rows.appendChild(el('div', { class: 'record-row waiting muted' }, [el('strong', { text: f.label + ': ' }), f.waitText || 'folgt im nächsten Schritt'])); return; }
-          open = false;
-          var inp = el('input', { type: 'text', class: 'code-in num-in', inputmode: 'numeric', autocomplete: 'off', 'aria-label': f.label });
-          function save() {
-            var v = String(inp.value).trim();
-            if (!/^\d+$/.test(v)) { wrong(fb, 'Tragt eine ganze Zahl ein.'); return; }
-            var n = parseInt(v, 10);
-            if ((f.min != null && n < f.min) || (f.max != null && n > f.max)) { wrong(fb, 'Tragt eine Zahl von ' + f.min + ' bis ' + f.max + ' ein.'); return; }
-            rec[f.id] = n; fb.textContent = ''; logEvent('messwert ' + p.id + ' ' + f.id + '=' + n);
-            if (p.fields.every(function (g) { return rec[g.id] != null; })) {
-              S.answers[p.id] = { title: p.title, text: p.fields.map(function (g) { return g.label + ': ' + rec[g.id] + (g.suffix ? ' ' + g.suffix : ''); }).join('\n') };
-              persist(); d.close(); solve(p, {}); return;
-            }
-            persist(); renderRec();
-          }
-          inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') save(); });
-          rows.appendChild(el('div', { class: 'record-row' }, [el('label', { class: 'record-label' }, [el('strong', { text: f.label + ': ' }), inp, f.suffix ? ' ' + f.suffix : '']),
-            el('button', { class: 'btn', text: f.button || (f.label + ' speichern'), onclick: save })]));
+      var edges = [], from = null, nodeEls = {}, SVGNS = 'http://www.w3.org/2000/svg';
+      var nstage = el('div', { class: 'net-stage' });
+      var svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('class', 'net-lines'); svg.setAttribute('aria-hidden', 'true');
+      svg.innerHTML = '<defs><marker id="net-arr-' + p.id + '" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L10,5 L0,10 z" fill="#E6C27A"/></marker></defs>';
+      nstage.appendChild(svg);
+      var nstatus = el('p', { class: 'muted small net-status', 'aria-live': 'polite', text: 'Tippt eine Karte an, von der ein Pfeil ausgeht, und dann die Karte, auf die er zeigt.' });
+      var elist = el('div', { class: 'net-edges' });
+      var tagOf = {}; p.items.forEach(function (it) { tagOf[it.id] = it.tag || it.id; });
+      function paintNodes() { p.items.forEach(function (it) { nodeEls[it.id].classList.toggle('from', from === it.id); }); }
+      function redraw() {
+        [].slice.call(svg.querySelectorAll('line')).forEach(function (l) { l.remove(); });
+        var sr = nstage.getBoundingClientRect();
+        function box(id) { var r = nodeEls[id].getBoundingClientRect(); return { x: r.left - sr.left + r.width / 2, y: r.top - sr.top + r.height / 2, hw: r.width / 2 + 5, hh: r.height / 2 + 5 }; }
+        edges.forEach(function (k) {
+          var ab = k.split('>'), a = box(ab[0]), b = box(ab[1]), dx = b.x - a.x, dy = b.y - a.y;
+          if (!dx && !dy) return;
+          var tA = Math.min(a.hw / (Math.abs(dx) || 1e-9), a.hh / (Math.abs(dy) || 1e-9));
+          var tB = Math.min(b.hw / (Math.abs(dx) || 1e-9), b.hh / (Math.abs(dy) || 1e-9));
+          var ln = document.createElementNS(SVGNS, 'line');
+          ln.setAttribute('x1', a.x + dx * tA); ln.setAttribute('y1', a.y + dy * tA);
+          ln.setAttribute('x2', b.x - dx * tB); ln.setAttribute('y2', b.y - dy * tB);
+          ln.setAttribute('stroke', '#E6C27A'); ln.setAttribute('stroke-width', '3'); ln.setAttribute('marker-end', 'url(#net-arr-' + p.id + ')');
+          svg.appendChild(ln);
         });
       }
-      renderRec();
-      body.push(rows, p.note ? el('p', { class: 'muted small', text: p.note }) : null);
+      function renderEdges() {
+        elist.innerHTML = '';
+        if (!edges.length) { elist.appendChild(el('p', { class: 'muted small', text: 'Noch keine Pfeile gesetzt.' })); return; }
+        edges.forEach(function (k) {
+          var ab = k.split('>');
+          elist.appendChild(el('button', { class: 'btn ghost small edge', type: 'button', 'aria-label': 'Pfeil ' + tagOf[ab[0]] + ' nach ' + tagOf[ab[1]] + ' entfernen', text: tagOf[ab[0]] + ' → ' + tagOf[ab[1]] + '  ✕', onclick: function () {
+            edges.splice(edges.indexOf(k), 1); redraw(); renderEdges(); fb.textContent = '';
+          } }));
+        });
+        elist.appendChild(el('button', { class: 'btn ghost small', type: 'button', text: 'Alle Pfeile löschen', onclick: function () { edges = []; from = null; paintNodes(); redraw(); renderEdges(); fb.textContent = ''; } }));
+      }
+      p.items.forEach(function (it) {
+        var pos = (p.layout && p.layout[it.id]) || [50, 50];
+        var nb = el('button', { class: 'net-node', type: 'button', style: 'left:' + pos[0] + '%;top:' + pos[1] + '%', onclick: function () {
+          if (!from) { from = it.id; paintNodes(); nstatus.textContent = 'Der Pfeil beginnt bei ' + tagOf[it.id] + '. Tippt jetzt die Karte, auf die er zeigt.'; return; }
+          if (from === it.id) { from = null; paintNodes(); nstatus.textContent = 'Abgebrochen. Tippt eine Karte an, von der ein Pfeil ausgeht.'; return; }
+          var key = from + '>' + it.id;
+          if (edges.indexOf(key) === -1) edges.push(key);
+          nstatus.textContent = 'Pfeil gesetzt: ' + tagOf[from] + ' → ' + tagOf[it.id] + '.';
+          from = null; paintNodes(); redraw(); renderEdges(); fb.textContent = '';
+        } }, [el('strong', { text: it.tag || '' }), el('span', { text: it.label })]);
+        nodeEls[it.id] = nb; nstage.appendChild(nb);
+      });
+      body.push(nstage, nstatus, elist, el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Verbindungen prüfen', onclick: function () {
+        if (edges.length < (p.minEdges || 3)) { wrong(fb, 'Setzt zuerst Pfeile zwischen den Karten.'); return; }
+        var sorted = edges.slice().sort(), msg = null;
+        if (!check(p.id, sorted.join(';'), p.hash)) {
+          if (p.edgeHash) {
+            /* Pro Pfeil: gehört er zu einer gültigen Lösung (edgeHash), ist er nur verdreht, oder gehört er nicht dazu? */
+            var turned = 0, foreign = 0;
+            edges.forEach(function (k) {
+              if (check(p.id + '-edge', k, p.edgeHash)) return;
+              var ab = k.split('>');
+              if (check(p.id + '-edge', ab[1] + '>' + ab[0], p.edgeHash)) turned++; else foreign++;
+            });
+            var parts = [];
+            if (turned) parts.push('Mindestens ein Pfeil zeigt in die falsche Richtung.');
+            if (foreign) parts.push('Mindestens ein Pfeil gehört nicht zum Netz.');
+            if (!parts.length && p.edgeCount && edges.length < p.edgeCount) parts.push('Es fehlt noch mindestens eine Verbindung.');
+            else if (!parts.length && p.edgeCount && edges.length > p.edgeCount) parts.push('Mindestens ein Pfeil ist zu viel.');
+            else if (!parts.length) parts.push('Die Pfeile passen einzeln, aber zusammen noch nicht.');
+            msg = 'Nichts passiert. ' + parts.join(' ');
+          }
+        }
+        attempt(sorted.join(';'), msg);
+      } })]));
+      renderEdges();
+      setTimeout(redraw, 60); setTimeout(redraw, 400);
+      if (window.ResizeObserver) { try { new ResizeObserver(function () { redraw(); }).observe(nstage); } catch (e) {} }
     }
     /* ---------- Aufgabe auf Papier mit Selbstabgleich (ab 1.4) ---------- */
-    if (p.type === 'paper') {
+    /* ---------- Untersuchungsobjekt (ab 1.8, „zeigen“ schrittweise ab 1.9) ----------
+       Bild mit Werkzeugen (tools, optional). Eine Stelle (spot) ist in den Ansichten sichtbar, die spot.tools nennt
+       (Standard: nur in der Ansicht spot.tool, ohne Angabe nur ohne Werkzeug). Antippen zeigt den Befund.
+       mode 'zeigen':    eine Aussage (rows) nach der anderen; das Team tippt die Stelle an, die sie belegt, oder „Nicht erkennbar“ ('nein').
+                         Antwort: rowId=spotId;… sortiert. Teilprüfung je Kategorie (spot.cat, 'nein'): cat=rowIds.
+       mode 'markieren': Stellen mit Stiften (pens) markieren, unmarkiert heißt „nichts“.
+                         Antwort: penId=spotIds;… in Stift-Reihenfolge. Teilprüfung je Stift (partBy 'pen') oder je Werkzeug (partBy 'tool': tool=spotIds). */
+    if (p.type === 'objekt') {
+      var tool = null, found = {}, oMarks = {}, oRows = {}, current = null, step = 0;
+      var penTag = function (id) { var q = (p.pens || []).filter(function (x) { return x.id === id; })[0]; return q ? (q.tag || q.label) : ''; };
+      var spotById = function (id) { return p.spots.filter(function (x) { return x.id === id; })[0]; };
+      var viewsOf = function (sp) { return sp.tools || [sp.tool || null]; };
+      var img = el('img', { src: p.image, alt: p.imageAlt || '' });
+      var spotLayer = el('div', { class: 'obj-spots' });
+      var objStage = el('div', { class: 'obj-stage' }, [img, spotLayer]);
+      var befund = el('div', { class: 'obj-befund', 'aria-live': 'polite' });
+      var spotBtns = {};
+      p.spots.forEach(function (sp) {
+        var tagEl = el('span', { class: 'obj-tag' });
+        var b = el('button', { class: 'obj-spot', type: 'button', style: 'left:' + sp.x + '%;top:' + sp.y + '%;width:' + sp.w + '%;height:' + sp.h + '%', 'aria-label': sp.label, onclick: function () { showSpot(sp); } }, [tagEl]);
+        b._tag = tagEl; spotBtns[sp.id] = b; spotLayer.appendChild(b);
+      });
+      var paintSpots = function () {
+        p.spots.forEach(function (sp) {
+          var b = spotBtns[sp.id];
+          b.hidden = viewsOf(sp).indexOf(tool) === -1; b.classList.toggle('sel', current === sp.id); b.classList.toggle('marked', !!oMarks[sp.id]);
+          b._tag.textContent = oMarks[sp.id] ? penTag(oMarks[sp.id]) : (found[sp.id] ? sp.label : '');
+          b.setAttribute('aria-label', sp.label + (oMarks[sp.id] ? ' (markiert: ' + penTag(oMarks[sp.id]) + ')' : ''));
+        });
+      };
+      var toolRow = null, toolBtns = {};
+      if (p.tools && p.tools.length) {
+        toolRow = el('div', { class: 'pens obj-tools', role: 'radiogroup', 'aria-label': 'Werkzeug' });
+        [{ id: null, label: p.baseLabel || 'Ohne Werkzeug' }].concat(p.tools).forEach(function (t) {
+          var tb = el('button', { class: 'pen' + (t.id === tool ? ' on' : ''), type: 'button', role: 'radio', 'aria-checked': t.id === tool ? 'true' : 'false', onclick: function () {
+            tool = t.id; logEvent('werkzeug ' + p.id + ' ' + (t.id || 'ohne'));
+            Object.keys(toolBtns).forEach(function (k) { var on = String(tool) === k; toolBtns[k].classList.toggle('on', on); toolBtns[k].setAttribute('aria-checked', on ? 'true' : 'false'); });
+            img.src = (p.views && tool && p.views[tool]) || p.image;
+            if (current && viewsOf(spotById(current)).indexOf(tool) === -1) current = null;
+            if (!current) showHint(t.hint || ('Ansicht: ' + t.label + '. Tippt auf eine umrandete Stelle.'));
+            paintSpots(); fb.textContent = '';
+          } }, [el('strong', { text: t.label })]);
+          toolBtns[String(t.id)] = tb; toolRow.appendChild(tb);
+        });
+      }
+      function showHint(t) { befund.innerHTML = ''; befund.appendChild(el('p', { class: 'muted', text: t })); }
+      /* --- zeigen: eine Aussage nach der anderen --- */
+      var stepBox = el('div', { class: 'obj-step' }), listBox = el('div', { class: 'obj-list' });
+      var nextOpen = function (from) { for (var k = 0; k < p.rows.length; k++) { var j = (from + k) % p.rows.length; if (!oRows[p.rows[j].id]) return j; } return -1; };
+      var answerLabel = function (v) { return v === 'nein' ? (p.noneLabel || 'Nicht erkennbar') : spotById(v).label; };
+      function assign(v) {
+        oRows[p.rows[step].id] = v; fb.textContent = ''; current = null;
+        var nx = nextOpen(step + 1); step = nx === -1 ? step : nx; renderSteps(nx === -1);
+        showHint(nx === -1 ? 'Alle Aussagen sind belegt. Prüft eure Auswahl unten in der Liste, dann „' + (p.button || 'Prüfen') + '“.' : (p.stepHint || 'Tippt auf die Stelle, die diese Aussage belegt.'));
+        paintSpots();
+      }
+      function renderSteps(done) {
+        stepBox.innerHTML = '';
+        if (!done) {
+          stepBox.appendChild(el('p', { class: 'obj-step-nr', text: 'Aussage ' + (step + 1) + ' von ' + p.rows.length }));
+          stepBox.appendChild(el('p', { class: 'obj-step-text', text: '„' + p.rows[step].label + '“' }));
+          stepBox.appendChild(el('div', { class: 'row' }, [el('button', { class: 'btn ghost small', type: 'button', text: p.noneLabel || 'Nicht erkennbar', onclick: function () { assign('nein'); } })]));
+        } else stepBox.appendChild(el('p', { class: 'obj-step-nr', text: 'Alle ' + p.rows.length + ' Aussagen belegt' }));
+        listBox.innerHTML = '';
+        p.rows.forEach(function (rw, i) {
+          var v = oRows[rw.id];
+          listBox.appendChild(el('button', { class: 'obj-li' + (i === step && !done ? ' on' : ''), type: 'button', onclick: function () { step = i; renderSteps(false); showHint(p.stepHint || 'Tippt auf die Stelle, die diese Aussage belegt.'); } },
+            [el('span', { class: 'obj-li-nr', text: (i + 1) + '' }), el('span', { class: 'obj-li-text', text: rw.label }), el('strong', { class: 'obj-li-ans', text: v ? answerLabel(v) : '…' })]));
+        });
+      }
+      function showSpot(sp) {
+        current = sp.id; if (!found[sp.id]) { found[sp.id] = true; logEvent('befund ' + p.id + ' ' + sp.id); }
+        befund.innerHTML = '';
+        befund.appendChild(el('p', {}, [el('strong', { text: sp.label + ': ' }), sp.text]));
+        if (p.mode === 'markieren') {
+          var r = el('div', { class: 'row' });
+          p.pens.forEach(function (q) {
+            r.appendChild(el('button', { class: 'btn small' + (oMarks[sp.id] === q.id ? '' : ' ghost'), type: 'button', text: (oMarks[sp.id] === q.id ? '✓ ' : '') + q.label, onclick: function () { oMarks[sp.id] = q.id; fb.textContent = ''; showSpot(sp); } }));
+          });
+          if (oMarks[sp.id]) r.appendChild(el('button', { class: 'btn ghost small', type: 'button', text: 'Markierung entfernen', onclick: function () { delete oMarks[sp.id]; fb.textContent = ''; showSpot(sp); } }));
+          befund.appendChild(r);
+        } else if (!sp.noRow) {
+          befund.appendChild(el('div', { class: 'row' }, [el('button', { class: 'btn small', type: 'button', text: 'Das belegt Aussage ' + (step + 1), onclick: function () { assign(sp.id); } })]));
+        }
+        paintSpots();
+      }
+      var side;
+      if (p.mode === 'zeigen') { side = [stepBox, befund, listBox]; renderSteps(false); showHint(p.startText || 'Tippt auf die Stelle am Objekt, die diese Aussage belegt.'); }
+      else { side = [befund, p.note ? el('p', { class: 'muted small', text: p.note }) : null]; showHint(p.startText || 'Tippt auf eine umrandete Stelle.'); }
+      paintSpots();
+      body.push(el('div', { class: 'obj-wrap' }, [el('div', { class: 'obj-left' }, [toolRow, objStage]), el('div', { class: 'obj-right' }, side)]),
+        el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Prüfen', onclick: function () {
+          var full, parts = [], msg = null;
+          if (p.mode === 'zeigen') {
+            if (p.rows.some(function (rw) { return !oRows[rw.id]; })) { wrong(fb, 'Belegt zuerst jede Aussage oder wählt „' + (p.noneLabel || 'Nicht erkennbar') + '“.'); return; }
+            full = p.rows.map(function (rw) { return rw.id + '=' + oRows[rw.id]; }).sort().join(';');
+            var catOf = function (v) { if (v === 'nein') return 'nein'; var s = spotById(v); return s && s.cat; };
+            (p.parts || []).forEach(function (pt) {
+              var ids = p.rows.filter(function (rw) { return catOf(oRows[rw.id]) === pt.id; }).map(function (rw) { return rw.id; }).sort();
+              parts.push(pt.label + ': ' + (check(p.id + '-' + pt.id, pt.id + '=' + ids.join('-'), pt.hash) ? 'stimmt' : 'stimmt noch nicht'));
+            });
+          } else {
+            var ids = Object.keys(oMarks);
+            if (!ids.length) { wrong(fb, 'Markiert zuerst mindestens eine Stelle.'); return; }
+            full = p.pens.map(function (q) { return q.id + '=' + ids.filter(function (k) { return oMarks[k] === q.id; }).sort().join('-'); }).join(';');
+            (p.parts || []).forEach(function (pt) {
+              var key = p.partBy === 'tool'
+                ? pt.id + '=' + ids.filter(function (k) { return (spotById(k).tool || 'ohne') === pt.id; }).sort().join('-')
+                : pt.id + '=' + ids.filter(function (k) { return oMarks[k] === pt.id; }).sort().join('-');
+              parts.push(pt.label + ': ' + (check(p.id + '-' + pt.id, key, pt.hash) ? 'stimmt' : 'stimmt noch nicht'));
+            });
+          }
+          if (parts.length && !check(p.id, full, p.hash)) msg = 'Nichts passiert. ' + parts.join(' · ') + '.';
+          attempt(full, msg);
+        } })]));
+    }
+    /* ---------- Widerspruch markieren (ab 1.8): links und rechts je eine Angabe antippen. Antwort: linksId|rechtsId ---------- */
+    if (p.type === 'widerspruch') {
+      var wSel = { l: null, r: null }, wBtns = { l: {}, r: {} };
+      var wSide = function (key, side) {
+        var col = el('div', { class: 'wd-col' }, [el('h3', { text: side.title })]);
+        side.blocks.forEach(function (bl) {
+          var items = el('div', { class: 'wd-items' });
+          var box = el('div', { class: 'wd-block' }, (bl.title ? [el('strong', { class: 'wd-title', text: bl.title })] : []).concat([items]));
+          bl.items.forEach(function (it) {
+            var b = el('button', { class: 'wd-item', type: 'button', 'aria-pressed': 'false', onclick: function () {
+              wSel[key] = wSel[key] === it.id ? null : it.id; fb.textContent = '';
+              Object.keys(wBtns[key]).forEach(function (k) { var on = wSel[key] === k; wBtns[key][k].classList.toggle('on', on); wBtns[key][k].setAttribute('aria-pressed', on ? 'true' : 'false'); wBtns[key][k]._tag.textContent = on ? ' [gewählt]' : ''; });
+            } }, [el('span', { text: it.label })]);
+            b._tag = el('span', { class: 'seg-tag' }); b.appendChild(b._tag);
+            wBtns[key][it.id] = b; items.appendChild(b);
+          });
+          col.appendChild(box);
+        });
+        return col;
+      };
+      body.push(el('div', { class: 'wd-wrap' }, [wSide('l', p.left), wSide('r', p.right)]),
+        el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Widerspruch prüfen', onclick: function () {
+          if (!wSel.l || !wSel.r) { wrong(fb, 'Tippt links und rechts je eine Angabe an.'); return; }
+          attempt(wSel.l + '|' + wSel.r);
+        } })]));
+    }
+    /* ---------- Tabelle ausfüllen (ab 1.8): Zelle antippen schaltet weiter. Antwort: spalte=z1-z2-…;… sortiert, Teilprüfung je Spalte ---------- */
+    if (p.type === 'tabelle') {
+      var cells = {};
+      var tState = function (id) { return p.states.filter(function (x) { return x.id === id; })[0]; };
+      var thead = el('tr', {}, [el('th', { text: p.cornerLabel || 'Merkmal' })].concat(p.cols.map(function (c) { return el('th', { text: c.label }); })));
+      var tbody = el('tbody');
+      p.rows.forEach(function (rw) {
+        var tr = el('tr', {}, [el('th', { text: rw.label })]);
+        p.cols.forEach(function (c) {
+          var key = c.id + '|' + rw.id;
+          var b = el('button', { class: 'tb-cell', type: 'button', text: '…', 'aria-label': rw.label + ', ' + c.label + ': leer', onclick: function () {
+            var i = cells[key] ? p.states.map(function (x) { return x.id; }).indexOf(cells[key]) + 1 : 0;
+            cells[key] = i < p.states.length ? p.states[i].id : null; if (!cells[key]) delete cells[key];
+            var stt = cells[key] && tState(cells[key]);
+            b.textContent = stt ? stt.label : '…'; b.className = 'tb-cell' + (stt ? ' s-' + stt.id : '');
+            b.setAttribute('aria-label', rw.label + ', ' + c.label + ': ' + (stt ? stt.label : 'leer')); fb.textContent = '';
+          } });
+          tr.appendChild(el('td', {}, [b]));
+        });
+        tbody.appendChild(tr);
+      });
+      body.push(el('p', { class: 'muted small', text: 'Jedes Antippen schaltet weiter: ' + p.states.map(function (x) { return x.label; }).join(' → ') + ' → leer.' }),
+        el('div', { class: 'tbl-wrap' }, [el('table', { class: 'data tb-fill' }, [el('thead', {}, [thead]), tbody])]),
+        el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Tabelle prüfen', onclick: function () {
+          if (Object.keys(cells).length < p.rows.length * p.cols.length) { wrong(fb, 'Füllt zuerst alle Zellen aus.'); return; }
+          var colAns = function (c) { return c.id + '=' + p.rows.map(function (rw) { return cells[c.id + '|' + rw.id]; }).join('-'); };
+          var full = p.cols.map(colAns).sort().join(';'), msg = null;
+          if (p.colHash && !check(p.id, full, p.hash)) msg = 'Nichts passiert. ' + p.cols.map(function (c) { return c.label + ': ' + (check(p.id + '-' + c.id, colAns(c), p.colHash[c.id]) ? 'stimmt' : 'stimmt noch nicht'); }).join(' · ') + '.';
+          attempt(full, msg);
+        } })]));
+    }
+    if (p.type === 'paper' && !p.sample) {
+      /* Papier-Aufgabe ohne Musterlösung (ab 1.8): ein Haken, dann fertig */
+      var pcb = el('input', { type: 'checkbox', id: 'paper-ok1' });
+      body.push(el('p', { class: 'paper-task' }, [el('strong', { text: 'Auf Papier (Logbuch): ' }), p.paperTask]),
+        el('label', { class: 'check' }, [pcb, ' ' + (p.doneText || 'Wir haben es ins Logbuch geschrieben.')]),
+        el('div', { class: 'row end' }, [el('button', { class: 'btn', text: 'Fertig', onclick: function () {
+          if (!pcb.checked) { wrong(fb, 'Erledigt zuerst den Auftrag im Logbuch und setzt dann den Haken.'); return; }
+          logEvent('papier ' + p.id); d.close(); solve(p, {});
+        } })]));
+    }
+    if (p.type === 'paper' && p.sample) {
       var cb1 = el('input', { type: 'checkbox', id: 'paper-ok1' }), cb2 = el('input', { type: 'checkbox', id: 'paper-ok2' });
       var step2 = el('div', { class: 'paper-step2' }); step2.hidden = true;
       var sample = el('ol', { class: 'sample-chain' }, p.sample.map(function (t) { return el('li', { text: t }); }));
@@ -966,9 +974,9 @@
       } })]));
     }
     body.push(fb);
-    body.push(el('div', { class: 'row' }, [el('button', { class: 'btn ghost small', type: 'button', text: 'Laborakte öffnen (nachschlagen)', onclick: function () { openAkte(); } })]));
+    body.push(el('div', { class: 'row' }, [el('button', { class: 'btn ghost small', type: 'button', text: 'Forscherakte öffnen (nachschlagen)', onclick: function () { openAkte(); } })]));
     if (p.hints && p.hints.length) body.push(hintArea(p, function () { rescueDialog(p, d); }));
-    d = openDialog({ cls: 'dlg-puzzle' + (refEl && p.type === 'freetext' ? ' has-ref' : ''), title: p.title, body: body, focus: p.type === 'code' || p.type === 'freetext' });
+    d = openDialog({ cls: 'dlg-puzzle' + (refEl && p.type === 'freetext' ? ' has-ref' : '') + (/^(objekt|widerspruch)$/.test(p.type) ? ' dlg-wide' : ''), title: p.title, body: body, focus: p.type === 'code' || p.type === 'freetext' });
   }
 
   /* ---------------- Schloss-Animation (onSolve: { fx: 'lock', fxTitle, fxText }) ---------------- */
@@ -1015,17 +1023,10 @@
     refreshRoom();
     var eff = p.onSolve || {};
     function next() {
-      if (eff.openAkte) { openAkte(eff.openAkte); checkMission(); return; }
       if (eff.then && ROOM.puzzles[eff.then]) openPuzzle(ROOM.puzzles[eff.then]);
       else if (ROOM) checkMission();
     }
     function proceed() {
-      if (eff.image && !proceed.imgDone) {
-        proceed.imgDone = true;
-        openDialog({ cls: 'dlg-image', title: eff.image.title, body: [zoomImg(BASE + eff.image.src, eff.image.alt || eff.image.title), eff.image.text ? el('div', {}, paras(eff.image.text)) : null], onClose: proceed });
-        return;
-      }
-      if (eff.toast) toast(eff.toast, 5000);
       if (eff.message) message(eff.message.from, eff.message.text, function () { if (eff.message2) message(eff.message2.from, eff.message2.text, next, true, eff.message2.audio); else next(); }, true, eff.message.audio);
       else if (eff.text) { var dd = openDialog({ cls: 'dlg-world', body: paras(eff.text).concat([el('div', { class: 'row end' }, [el('button', { class: 'btn', text: 'Weiter', onclick: function () { dd.close(); } })])]), onClose: next }); }
       else next();
@@ -1035,7 +1036,7 @@
   function applyEffects(eff, silent) {
     (eff.items || []).forEach(function (it) { if (addUnique(S.items, it, 'id') && !silent) toast('Neues Fundstück: ' + it.label); });
     (eff.docs || []).forEach(function (id) { var dc = ROOM.docs[id]; if (dc) addUnique(S.docs, { id: id, kind: 'doc', title: dc.title, text: dc.text, table: dc.table, audio: dc.audio }, 'id'); });
-    if (eff.evidence) addUnique(S.evidence, eff.evidence, 'id');
+    [].concat(eff.evidence || []).forEach(function (ev) { addUnique(S.evidence, ev, 'id'); });
     if (eff.merksatz) addUnique(S.merksaetze, eff.merksatz);
     persist();
   }
@@ -1061,7 +1062,7 @@
       var blocks = [];
       a.docs.forEach(function (id) {
         var dd = ROOM.docs[id]; addUnique(S.docs, { id: id, kind: 'doc', title: dd.title, text: dd.text, table: dd.table, audio: dd.audio }, 'id');
-        blocks.push(el('h3', { text: dd.title })); docBody(dd).forEach(function (n) { if (n) blocks.push(n); });
+        blocks.push(el('h3', { text: dd.title })); docBody(dd, true).forEach(function (n) { if (n) blocks.push(n); });
       });
       persist(); openDialog({ cls: 'dlg-doc paper', title: a.title, body: blocks });
     } else if (a.type === 'puzzle') openPuzzle(ROOM.puzzles[a.puzzle]);
@@ -1073,7 +1074,6 @@
     var scale = 1;
     var img = el('img', { src: src, alt: alt || '' });
     var box = el('div', { class: 'zoom-box' }, [img]);
-    img.addEventListener('error', function () { box.innerHTML = ''; box.appendChild(el('div', { class: 'img-missing', text: 'Bild folgt: ' + String(src).split('/').pop() })); });
     function set(s) { scale = Math.max(1, Math.min(3, s)); img.style.width = (scale * 100) + '%'; }
     return el('div', { class: 'zoom' }, [box, el('div', { class: 'row center' }, [
       el('button', { class: 'btn ghost small', 'aria-label': 'Verkleinern', text: '−', onclick: function () { set(scale - 0.5); } }),
@@ -1089,10 +1089,10 @@
         S.seen['done-' + m.id] = true; S.solved[m.id] = { t: new Date().toISOString() }; persist();
         if (i < cur) return;
         var nx = ROOM.missions[i + 1];
-        var dlg = openDialog({ cls: 'dlg-done', title: m.doneTitle || 'Mission abgeschlossen', body: paras(m.doneText || '').concat([
+        var dlg = openDialog({ cls: 'dlg-done', title: m.doneTitle || 'Mission abgeschlossen', body: paras(m.doneText || '').concat(!nx && ROOM.end ? [el('h3', { text: ROOM.end.title })].concat(paras(ROOM.end.text)) : []).concat([
           nx ? el('p', { class: 'muted', text: (unlockMode() === 'auto' ? 'Für die nächste Mission beantwortet ihr zuerst das Do Now im Logbuch. Dann tippt unten auf „Nächste Mission“.' : 'Die nächste Mission schaltet eure Lehrkraft mit einem Code frei. Habt ihr den Code schon, tippt unten auf „Nächste Mission“.') }) : null,
           el('p', { class: 'muted', text: 'Notfall-Code für euer Logbuch: ' + makeCode() }),
-          el('div', { class: 'row end' }, [nx ? el('button', { class: 'btn ghost', text: 'Nächste Mission', onclick: function () { dlg.close(); lockScreen(nx, true); } }) : null, el('button', { class: 'btn ghost', text: 'Laborakte', onclick: function () { dlg.close(); openAkte('beweise'); } }),
+          el('div', { class: 'row end' }, [!nx ? el('a', { class: 'btn ghost', href: BASE + 'index.html', text: 'Zum Museumsplan' }) : null, nx ? el('button', { class: 'btn ghost', text: 'Nächste Mission', onclick: function () { dlg.close(); lockScreen(nx, true); } }) : null, el('button', { class: 'btn ghost', text: 'Forscherakte', onclick: function () { dlg.close(); openAkte('beweise'); } }),
             el('button', { class: 'btn', text: 'Spielstand sichern', onclick: function () { saveFile(); toast('Gesichert. Ladet die Datei in WebWeaver hoch.', 6000); } })])]) });
       }
     });
@@ -1125,7 +1125,7 @@
       el('label', { class: 'check' }, [cb, ' Wir haben das Do Now im Logbuch beantwortet.']), fb,
       el('div', { class: 'row' }, [el('button', { class: 'btn', text: 'Mission starten', onclick: go }),
         closable ? el('button', { class: 'btn ghost small', text: 'Abbrechen', onclick: function () { d.close(); } }) : null,
-        el('a', { class: 'btn ghost small', href: BASE + 'index.html', text: 'Zurück zur Startseite' })])
+        el('a', { class: 'btn ghost small', href: BASE + 'index.html', text: 'Zurück zum Museumsplan' })])
     ] });
   }
   function lockScreen(m, closable) {
@@ -1140,7 +1140,7 @@
     var d = openDialog({ cls: 'dlg-lock', closable: closable ? undefined : false, title: ROOM.title, body: [
       el('p', { text: 'Die Tür ist verschlossen. Gebt den Code für „' + m.title + '“ ein.' }),
       el('div', { class: 'row' }, [inp, el('button', { class: 'btn', text: 'Aufschließen', onclick: go })]), fb,
-      el('div', { class: 'row' }, [closable ? el('button', { class: 'btn ghost small', text: 'Abbrechen', onclick: function () { d.close(); } }) : null, el('a', { class: 'btn ghost small', href: BASE + 'index.html', text: 'Zurück zur Startseite' })])
+      el('div', { class: 'row' }, [closable ? el('button', { class: 'btn ghost small', text: 'Abbrechen', onclick: function () { d.close(); } }) : null, el('a', { class: 'btn ghost small', href: BASE + 'index.html', text: 'Zurück zum Museumsplan' })])
     ] });
   }
   function intro(m) {
@@ -1159,17 +1159,14 @@
     S.items.forEach(function (it) { invEl.appendChild(el('button', { class: 'inv-item', text: it.label, onclick: function () { openAkte('funde'); } })); });
   }
   function buildRoom() {
-    document.title = ROOM.title + ' · ' + (ROOM.gameTitle || 'Genetik-Labor');
+    document.title = ROOM.title + ' · Der Tresor der Zeit';
     var stage = el('div', { class: 'stage' + (ROOM.flashlight ? ' dark-mode' : '') });
-    var bg = el('img', { class: 'scene-bg', src: ROOM.image, alt: ROOM.imageAlt || '' });
-    /* Raumbild fehlt noch: Tippflächen mit Beschriftung zeigen, damit sich alles testen lässt */
-    bg.addEventListener('error', function () { stage.classList.add('no-img'); });
-    sceneEl = el('div', { class: 'scene' }, [bg]);
+    sceneEl = el('div', { class: 'scene' }, [el('img', { class: 'scene-bg', src: ROOM.image, alt: ROOM.imageAlt || '' })]);
     ROOM.hotspots.forEach(function (h) {
       var b = el('button', { class: 'hot', 'aria-label': h.label, style: 'left:' + h.rect[0] + '%;top:' + h.rect[1] + '%;width:' + h.rect[2] + '%;height:' + h.rect[3] + '%', onclick: function () {
         var st = (h.states || [{ action: h.action }]).filter(function (s) { return cond(s.if); })[0];
         if (st) runAction(st.action);
-      } }, [el('span', { class: 'hot-label', text: h.label })]);
+      } });
       hotEls.push(b); sceneEl.appendChild(b);
     });
     darkEl = el('div', { class: 'dark' });
@@ -1199,13 +1196,12 @@
           hotEls.forEach(function (h) { h.classList.add('reveal'); }); setTimeout(function () { hotEls.forEach(function (h) { h.classList.remove('reveal'); }); }, 2600);
         } }),
         el('button', { class: 'hud-btn', text: 'Akte', onclick: function () { openAkte(); } }),
-        el('button', { class: 'hud-btn', text: 'Menü', onclick: function () { openMenu(el('a', { class: 'btn ghost', href: BASE + 'index.html', text: 'Zur Startseite' })); } })
+        el('button', { class: 'hud-btn', text: 'Menü', onclick: function () { openMenu(el('a', { class: 'btn ghost', href: BASE + 'index.html', text: 'Zum Museumsplan' })); } })
       ])
     ]);
     invEl = el('div', { class: 'inv', 'aria-label': 'Fundstücke' });
-    if (ROOM.hideInventory) invEl.style.display = 'none';
     stage.appendChild(hud); stage.appendChild(invEl);
-    stage.appendChild(el('div', { class: 'rotate', text: 'Haltet das iPad bitte quer.' }));
+    document.body.appendChild(el('div', { class: 'rotate', text: 'Haltet das iPad bitte quer.' }));   /* direkt an der Seite, sonst liegt er unter den Dialogen */
     document.body.appendChild(stage);
     function fit() {
       var ratio = ROOM.size[0] / ROOM.size[1], vw = stage.clientWidth, vh = stage.clientHeight;
@@ -1222,10 +1218,10 @@
   api = {
     isSolved: isSolved, isUnlocked: isUnlocked, state: function () { return S; },
     room: function (def) {
-      ROOM = def; BASE = def.base || '../'; configure(def);
+      ROOM = def; BASE = def.base || '../';
       document.addEventListener('DOMContentLoaded', function () {
         removePreviewHint();
-        if (!load() || !sessionStorage.getItem(CONFIRM_KEY)) { location.href = BASE + 'index.html'; return; }
+        if (!load() || !sessionStorage.getItem('tresor.confirmed')) { location.href = BASE + 'index.html'; return; }
         // Wirkungen gelöster Rätsel erneut anwenden (z. B. nach Notfall-Code), ohne Meldungen
         Object.keys(ROOM.puzzles).forEach(function (k) { if (isSolved(k)) applyEffects(ROOM.puzzles[k].onSolve || {}, true); });
         buildRoom();
@@ -1240,7 +1236,7 @@
       });
     },
     start: function (def) {
-      BASE = def.base || ''; configure(def);
+      BASE = def.base || '';
       document.addEventListener('DOMContentLoaded', function () { removePreviewHint(); buildStart(def); });
     }
   };
@@ -1251,8 +1247,7 @@
     function render() {
       root.innerHTML = '';
       var st = load();
-      root.appendChild(el('div', { class: 'start-head' }, [el('h1', { text: def.title || 'Genetik-Labor' }), el('p', { class: 'sub', text: def.subtitle || '' })]));
-      if (def.landscape && !document.querySelector('.rotate')) document.body.appendChild(el('div', { class: 'rotate start-rotate', text: 'Haltet das iPad bitte quer.' }));
+      root.appendChild(el('div', { class: 'start-head' }, [el('h1', { text: 'Der Tresor der Zeit' }), el('p', { class: 'sub', text: 'Ein Fall für das Junior-Forschungsteam des Museums' })]));
       if (!st) {
         var inputs = [0, 1, 2].map(function (i) { return el('input', { type: 'text', autocomplete: 'off', placeholder: i < 2 ? 'Vorname ' + (i + 1) : 'Vorname 3 (optional)', 'aria-label': 'Vorname ' + (i + 1) }); });
         var fb = el('div', { class: 'feedback', role: 'status' });
@@ -1260,13 +1255,13 @@
         var codeIn = el('input', { type: 'text', autocomplete: 'off', autocapitalize: 'characters', placeholder: 'Notfall-Code, z. B. T1-…', 'aria-label': 'Notfall-Code' });
         root.appendChild(el('div', { class: 'start-panels' }, [
           el('section', { class: 'panel' }, [el('h2', { text: 'Neues Team' }), el('p', { class: 'muted', text: 'Nur Vornamen, keine weiteren Angaben.' })].concat(inputs).concat([
-            el('button', { class: 'btn', text: 'Team anlegen', onclick: function () {
+            el('button', { class: 'btn', text: 'Fall übernehmen', onclick: function () {
               var team = inputs.map(function (i) { return i.value.trim(); }).filter(Boolean);
               if (!team.length) { wrong(fb, 'Tragt mindestens einen Vornamen ein.'); return; }
-              S = blank(team); persist(); sessionStorage.setItem(CONFIRM_KEY, '1'); render();
+              S = blank(team); persist(); sessionStorage.setItem('tresor.confirmed', '1'); render();
             } }), fb])),
           el('section', { class: 'panel' }, [el('h2', { text: 'Weiterspielen' }), el('p', { class: 'muted', text: 'Ladet eure Spielstand-Datei aus WebWeaver.' }),
-            el('button', { class: 'btn', text: 'Spielstand laden', onclick: function () { pickFile(function (err) { if (err) wrong(fb2, err); else { sessionStorage.setItem(CONFIRM_KEY, '1'); render(); } }); } }),
+            el('button', { class: 'btn', text: 'Spielstand laden', onclick: function () { pickFile(function (err) { if (err) wrong(fb2, err); else { sessionStorage.setItem('tresor.confirmed', '1'); render(); } }); } }),
             el('h3', { text: 'Datei verloren?' }), codeIn,
             el('button', { class: 'btn ghost', text: 'Mit Notfall-Code weiterspielen', onclick: function () {
               var ids = readCode(codeIn.value);
@@ -1274,19 +1269,19 @@
               if (!ids) { wrong(fb2, 'Dieser Code ist nicht gültig. Prüft jedes Zeichen.'); return; }
               S = blank(team.length ? team : ['Team']);
               ids.forEach(function (id) { if (/^m/.test(id)) S.unlocked.push(id); else S.solved[id] = { t: 'code' }; });
-              S.seen.restoredFromCode = true; persist(); sessionStorage.setItem(CONFIRM_KEY, '1'); render();
+              S.seen.restoredFromCode = true; persist(); sessionStorage.setItem('tresor.confirmed', '1'); render();
             } }), fb2])
         ]));
         return;
       }
       S = st;
-      if (!sessionStorage.getItem(CONFIRM_KEY)) {
+      if (!sessionStorage.getItem('tresor.confirmed')) {
         var age = Math.round((Date.now() - new Date(S.log.length ? S.log[S.log.length - 1].t : S.created).getTime()) / 3600000);
         root.appendChild(el('section', { class: 'panel warn' }, [
           el('h2', { text: 'Seid ihr Team ' + S.team.join(', ') + '?' }),
           el('p', { text: 'Auf diesem iPad liegt noch ein Spielstand' + (age >= 1 ? ' von vor etwa ' + age + ' Stunde' + (age === 1 ? '' : 'n') : '') + '. Vielleicht hat ein anderes Team vergessen, das Spiel zu beenden.' }),
           el('div', { class: 'row' }, [
-            el('button', { class: 'btn', text: 'Ja, das sind wir', onclick: function () { sessionStorage.setItem(CONFIRM_KEY, '1'); render(); } }),
+            el('button', { class: 'btn', text: 'Ja, das sind wir', onclick: function () { sessionStorage.setItem('tresor.confirmed', '1'); render(); } }),
             el('button', { class: 'btn ghost', text: 'Nein, wir sind ein anderes Team', onclick: function () {
               var dd = openDialog({ title: 'Fremden Spielstand entfernen', body: [
                 el('p', { text: 'Sichert den Spielstand des anderen Teams zuerst, damit er nicht verloren geht. Gebt die Datei danach eurer Lehrkraft.' }),
@@ -1310,5 +1305,5 @@
   }
 
   window.TRESOR = api;
-  window.TRESOR._test = { sha256: sha256, norm: norm, registry: REGISTRY, shuffle: seededShuffle, makeCode: makeCode, readCode: readCode };
+  window.TRESOR._test = { sha256: sha256, norm: norm, shuffle: seededShuffle, makeCode: makeCode, readCode: readCode };
 })();
