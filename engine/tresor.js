@@ -1,28 +1,29 @@
 /* =====================================================================
    TRESOR-ENGINE · Grundsystem für „Der Tresor der Zeit“
-   Version 1.6 (Antworten werden gemischt, Schloss-Animation; Raum 1: Textkarten, Lückensatz mit Dreierprüfung, Einspruch, Markieren im Text, Nachfragen, Netz verbinden, Papier-Aufgabe, Notfall auf Papier, optionale Sprachaufnahmen) · für alle Räume gleich. Inhalte stehen in den Raumdateien.
+   Version 2.0 (Raum 1 und 2 V3: Simulation, Sammelwand, Freitext mit Haken, Seed aus dem Teamnamen; Raum 2: Untersuchungsobjekt, Widerspruch markieren, Tabelle ausfüllen; Antworten werden gemischt, Schloss-Animation; Raum 1: Textkarten, Lückensatz mit Dreierprüfung, Einspruch, Markieren im Text, Nachfragen, Netz verbinden, Papier-Aufgabe, Notfall auf Papier, optionale Sprachaufnahmen) · für alle Räume gleich. Inhalte stehen in den Raumdateien.
    ===================================================================== */
 (function () {
   'use strict';
 
   var ENGINE_VERSION = 1;
-  var ENGINE_BUILD = 'Engine 1.6 · 02.10.2026 · Raum 1 V2.1';   /* im Menü sichtbar: zeigt, welche Fassung der Browser wirklich geladen hat */
-  var STORE_KEY = 'tresor.v1';
+  var ENGINE_BUILD = 'Engine 2.0 (Kopie vom 20.10.2026) · Mendel-Probe';
+  var LEGACY_ROOMS = 'Raum 1 V2.2 · Raum 2 V1.1';   /* Räume ohne eigenes Feld version */   /* im Menü sichtbar: zeigt, welche Fassung der Browser wirklich geladen hat */
+  var STORE_KEY = 'mendel.v1';
 
   /* ---------------------------------------------------------------
      REGISTER: Reihenfolge NIE ändern, nur hinten anhängen!
      Daraus wird der Notfall-Spielstand-Code gebildet.
      --------------------------------------------------------------- */
   var REGISTRY = [
-    'm2.3', 'r2-schrank', 'r2-reihenfolge', 'r2-merkmale', 'r2-code', 'r2-logbuch', 'r2-bonus',
-    /* Raum 1 (ab Engine 1.2) */
-    'm1.1', 'm1.2', 'm1.3',
-    'r1-1-typen', 'r1-1-frage', 'r1-1-these', 'r1-1-fragetext', 'r1-1-quelle',
-    'r1-2-modell', 'r1-2-kette', 'r1-2-vorhersage', 'r1-2-versuch',
-    'r1-3-einspruch', 'r1-3-kette', 'r1-3-belege', 'r1-3-schloss', 'r1-3-modellkritik', 'r1-3-population',
-    /* ab Engine 1.4 */
-    'r1-3-zahl'
+    'mendel-1', 'mendel-2',
+    'probe-brief', 'probe-wuerfe-tabelle', 'probe-wuerfe-zahl',
+    'probe-hyp-zahl', 'probe-hyp-beleg', 'probe-einspruch-markup', 'probe-einspruch-skizze',
+    'probe-vererbung', 'probe-methode', 'probe-erbsen-zahlen', 'probe-stammbaum', 'probe-stammbaum-test', 'mendel-3', 'lab-versuch1', 'lab-aussage1', 'lab-versuch2', 'lab-aussage2', 'lab-versuch3', 'lab-aussage3'
   ];
+  /* Alle Rätsel des Spiels (für den Gesamtfortschritt in der Gutachterakte) */
+  var ALL_PUZZLES = ['probe-vererbung', 'probe-brief', 'probe-wuerfe-tabelle', 'probe-wuerfe-zahl',
+    'lab-versuch1', 'lab-aussage1', 'lab-versuch2', 'lab-aussage2', 'lab-versuch3', 'lab-aussage3',
+    'probe-methode', 'probe-erbsen-zahlen', 'probe-stammbaum', 'probe-stammbaum-test', 'probe-einspruch-markup', 'probe-einspruch-skizze'];
 
   /* ---------------- Hilfsfunktionen ---------------- */
   function sha256(str) {
@@ -108,7 +109,7 @@
     var last = null;
     AUDIO_EXT.forEach(function (x) { last = el('source', { src: base + '.' + x[0], type: x[1] }); a.appendChild(last); });
     var msg = el('div', { class: 'audio-msg' });
-    var box = el('div', { class: 'audio-box' }, [el('span', { class: 'audio-label', text: 'Aufnahme anhören (am besten mit Kopfhörern)' }), a, msg]);
+    var box = el('div', { class: 'audio-box' }, [el('span', { class: 'audio-label', text: (ROOM && ROOM.audioLabel) || 'Aufnahme anhören (am besten mit Kopfhörern)' }), a, msg]);
     function diagnose() {
       if (!window.fetch) { box.style.display = 'none'; return; }
       var found = null, left = AUDIO_EXT.length;
@@ -136,7 +137,7 @@
     if (r.text) kids.push(el('div', { class: 'ref-item' }, paras(r.text)));
     (r.docs || []).forEach(function (id) {
       var dc = ROOM.docs[id]; if (!dc) return;
-      kids.push(el('div', { class: 'ref-item' }, [el('strong', { text: dc.title })].concat(docBody(dc))));
+      kids.push(el('div', { class: 'ref-item' }, [el('strong', { text: dc.title })].concat(docBody(dc, true))));
     });
     (r.answers || []).forEach(function (k) {
       var a = S.answers[k]; if (!a) return;
@@ -150,8 +151,9 @@
     var rows = t.rows.map(function (r) { return el('tr', {}, r.map(function (c) { return el('td', { text: c }); })); });
     return el('div', { class: 'tbl-wrap' }, [el('table', { class: 'data' }, [el('thead', {}, [head]), el('tbody', {}, rows)])]);
   }
-  function docBody(dc) {
-    return [audioPlayer(dc.audio, 'Aufnahme: ' + dc.title), el('div', { class: 'doc-text' }, paras(dc.text)), dc.table ? tableEl(dc.table) : null];
+  function docBody(dc, withImg) {
+    return [withImg && dc.image ? el('img', { class: 'doc-img', src: dc.image, alt: dc.title }) : null,
+      audioPlayer(dc.audio, 'Aufnahme: ' + dc.title), el('div', { class: 'doc-text' }, paras(dc.text)), dc.table ? tableEl(dc.table) : null];
   }
   function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 
@@ -164,7 +166,7 @@
   }
   function load() {
     /* Test-Hilfe: Adresse mit ?neu=1 öffnen löscht den Spielstand dieses Geräts und startet neu. */
-    try { if (/[?&]neu=1(&|$)/.test(location.search)) { localStorage.removeItem(STORE_KEY); sessionStorage.removeItem('tresor.confirmed'); history.replaceState(null, '', location.pathname); } } catch (e) {}
+    try { if (/[?&]neu=1(&|$)/.test(location.search)) { localStorage.removeItem(STORE_KEY); sessionStorage.removeItem('mendel.confirmed'); history.replaceState(null, '', location.pathname); } } catch (e) {}
     try { var raw = localStorage.getItem(STORE_KEY); S = raw ? JSON.parse(raw) : null; } catch (e) { S = null; }
     return S;
   }
@@ -181,11 +183,11 @@
   /* ---------------- Spielstand-Datei ---------------- */
   function saveFile() {
     var body = JSON.stringify(S);
-    var file = { format: 'tresor-spielstand', engine: ENGINE_VERSION, saved: new Date().toISOString(),
-      state: S, check: sha256('tresor-save|' + body) };
+    var file = { format: 'mendel-spielstand', engine: ENGINE_VERSION, saved: new Date().toISOString(),
+      state: S, check: sha256('mendel-save|' + body) };
     var names = S.team.map(function (n) { return n.replace(/[^A-Za-zÄÖÜäöüß0-9]/g, ''); }).join('-') || 'team';
     var blob = new Blob([JSON.stringify(file, null, 1)], { type: 'application/json' });
-    var a = el('a', { href: URL.createObjectURL(blob), download: 'tresor_' + names + '_' + today() + '.json' });
+    var a = el('a', { href: URL.createObjectURL(blob), download: 'mendel_' + names + '_' + today() + '.json' });
     document.body.appendChild(a); a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
     logEvent('gesichert');
@@ -195,8 +197,8 @@
     r.onload = function () {
       try {
         var f = JSON.parse(r.result);
-        if (f.format !== 'tresor-spielstand') throw new Error('Das ist keine Tresor-Spielstand-Datei.');
-        if (sha256('tresor-save|' + JSON.stringify(f.state)) !== f.check) throw new Error('Die Datei ist beschädigt oder wurde verändert.');
+        if (f.format !== 'mendel-spielstand') throw new Error('Das ist keine Spielstand-Datei dieses Spiels.');
+        if (sha256('mendel-save|' + JSON.stringify(f.state)) !== f.check) throw new Error('Die Datei ist beschädigt oder wurde verändert.');
         S = f.state; persist(); done(null);
       } catch (e) { done(e.message || 'Die Datei konnte nicht gelesen werden.'); }
     };
@@ -235,9 +237,12 @@
   /* ---------------- Oberfläche: Dialoge, Meldungen ---------------- */
   var BASE = '';
   var FIGURES = {
-    kemal: { name: 'Kemal Aydın', role: 'Präparator', img: 'figuren/kemal.jpg' },
+    kemal: { name: 'Kemal Aydın', role: 'Geschäftsstelle des Zuchtvereins', img: 'figuren/kemal.jpg' },
+    erzaehler: { name: 'Büro für Tiergenetik', role: 'Montagmorgen, 8:40 Uhr', img: null },
     wendt: { name: 'Dr. Johanna Wendt', role: 'Kuratorin', img: 'figuren/wendt.jpg' },
-    hallmann: { name: 'Viktor Hallmann', role: 'Händler', img: 'figuren/hallmann.jpg' }
+    hallmann: { name: 'Viktor Hallmann', role: 'Händler', img: 'figuren/hallmann.jpg' },
+    zuechter: { name: 'Der Züchter', role: 'seit 30 Jahren im Verein', img: 'figuren/zuechter.jpg' },
+    sammler: { name: 'Ein Sammler', role: 'Fossilienbörse', img: null }
   };
   var dialogStack = [];
   function openDialog(opts) {
@@ -248,7 +253,10 @@
     var wrap = el('div', { class: 'dlg' }, [card]);
     function close() { [].forEach.call(wrap.querySelectorAll('audio'), function (a) { try { a.pause(); } catch (e) {} }); wrap.remove(); dialogStack = dialogStack.filter(function (d) { return d !== api; }); if (opts.onClose) opts.onClose(); }
     closeBtn.addEventListener('click', close);
-    if (opts.closable !== false) wrap.addEventListener('click', function (ev) { if (ev.target === wrap) close(); });
+    /* Schließen über den Hintergrund nur, wenn auch das Antippen dort begann (Ziehen einer Karte über den Rand schließt nicht) */
+    var downOnWrap = false;
+    wrap.addEventListener('pointerdown', function (ev) { downOnWrap = ev.target === wrap; });
+    if (opts.closable !== false) wrap.addEventListener('click', function (ev) { if (ev.target === wrap && downOnWrap) close(); downOnWrap = false; });
     document.body.appendChild(wrap);
     var api = { close: close, card: card, wrap: wrap, closable: opts.closable !== false };
     dialogStack.push(api);
@@ -283,15 +291,65 @@
   var ROOM = null;
   function openAkte(tab) {
     tab = tab || 'fall';
-    var tabs = [['fall', 'Fall'], ['funde', 'Fundstücke'], ['docs', 'Dokumente'], ['archiv', 'Archiv'], ['beweise', 'Beweisakte']];
+    var tabs = [['fall', 'Fall'], ['fortschritt', 'Fortschritt'], ['versuche', 'Versuche'], ['funde', 'Fundstücke'], ['docs', 'Dokumente'], ['archiv', 'Archiv'], ['beweise', 'Beweisakte'], ['auswertung', 'Auswertung']].filter(function (t) { return !((t[0] === 'funde' && !S.items.length) || (t[0] === 'beweise' && !S.evidence.length)); });
     var content = el('div', { class: 'akte-content' });
     var bar = el('div', { class: 'tabs', role: 'tablist' }, tabs.map(function (t) {
       return el('button', { class: 'tab' + (t[0] === tab ? ' on' : ''), role: 'tab', text: t[1], onclick: function () { d.close(); openAkte(t[0]); } });
     }));
     function empty(t) { return el('p', { class: 'muted', text: t }); }
-    if (tab === 'fall') {
+    if (tab === 'fortschritt') {
+      var puzzleIds = ROOM && ROOM.puzzles ? Object.keys(ROOM.puzzles) : [];
+      var solvedCount = puzzleIds.filter(isSolved).length;
+      var missionCount = ROOM && ROOM.missions ? ROOM.missions.length : 0;
+      var missionDone = ROOM && ROOM.missions ? ROOM.missions.filter(function (m) { return m.requires.every(isSolved); }).length : 0;
+      var pct = puzzleIds.length ? Math.round(solvedCount / puzzleIds.length * 100) : 0;
+      var gesamtDone = ALL_PUZZLES.filter(isSolved).length, gesamtPct = Math.round(gesamtDone / ALL_PUZZLES.length * 100);
+      content.appendChild(el('p', { text: 'Gesamtfortschritt (alle Räume): ' + gesamtDone + ' von ' + ALL_PUZZLES.length + ' Rätseln (' + gesamtPct + ' %)' }));
+      content.appendChild(el('p', { class: 'muted', text: 'In diesem Raum gelöst: ' + solvedCount + ' von ' + puzzleIds.length }));
+      var track = el('div', { class: 'progress-track', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(gesamtPct) });
+      track.appendChild(el('div', { class: 'progress-fill', style: 'width:' + gesamtPct + '%' }));
+      content.appendChild(track);
+      if (missionCount) content.appendChild(el('p', { text: 'Abgeschlossene Missionsaufträge: ' + missionDone + ' von ' + missionCount }));
+      puzzleIds.forEach(function (id) {
+        var p = ROOM.puzzles[id], done = isSolved(id), hints = S.hints[id] || 0;
+        content.appendChild(el('div', { class: 'akte-item progress-item' }, [
+          el('strong', { text: (done ? 'Erledigt · ' : 'Offen · ') + (p.title || id) }),
+          el('p', { class: 'muted small', text: done ? ('Tipps genutzt: ' + hints + (S.solved[id].rescue ? ' · Notfallöffnung genutzt' : '')) : (hints ? 'Tipps genutzt: ' + hints : 'Noch nicht gelöst') })
+        ]));
+      });
+    } else if (tab === 'versuche') {
+      var simData = S.vars.sim || {}, simKeys = Object.keys(simData);
+      var totalRuns = 0;
+      simKeys.forEach(function (id) { totalRuns += (simData[id].runs || []).length; });
+      content.appendChild(el('p', { class: 'muted', text: 'Gespeicherte Simulationsläufe: ' + totalRuns }));
+      if (!simKeys.length || !totalRuns) content.appendChild(empty('Noch keine Versuche gespeichert.'));
+      simKeys.forEach(function (id) {
+        var runs = simData[id].runs || [];
+        if (!runs.length) return;
+        var puzzle = ROOM && ROOM.puzzles ? ROOM.puzzles[id] : null;
+        content.appendChild(el('h3', { text: puzzle ? puzzle.title : id }));
+        content.appendChild(tableEl({ head: ['Lauf', 'Ergebnis'], rows: runs.map(function (r) { return [r.label || ('Lauf ' + r.n), r.summary || '']; }) }));
+      });
+    } else if (tab === 'auswertung') {
+      var allIds = ALL_PUZZLES;
+      var doneIds = allIds.filter(isSolved);
+      var usedHints = allIds.reduce(function (n, id) { return n + (S.hints[id] || 0); }, 0);
+      var rescueCount = allIds.filter(function (id) { return !!(S.solved[id] && S.solved[id].rescue); }).length;
+      var failed = (S.log || []).filter(function (x) { return /^fehlversuch /.test(x.e); }).length;
+      content.appendChild(el('h3', { text: 'Auswertung des Teams' }));
+      content.appendChild(el('p', { text: 'Gelöste Rätsel (alle Räume): ' + doneIds.length + ' von ' + allIds.length }));
+      content.appendChild(el('p', { text: 'Genutzte Tipps: ' + usedHints }));
+      content.appendChild(el('p', { text: 'Notfallöffnungen: ' + rescueCount }));
+      content.appendChild(el('p', { text: 'Fehlversuche: ' + failed }));
+      content.appendChild(el('p', { class: 'muted', text: 'Diese Angaben beschreiben den Spielverlauf. Sie sind keine Note und bewerten nicht, wie gut ihr die genetischen Zusammenhänge erklären könnt.' }));
+      content.appendChild(el('h3', { text: 'Abgeschlossene Aufgaben in diesem Raum' }));
+      var hier = ROOM && ROOM.puzzles ? Object.keys(ROOM.puzzles).filter(isSolved) : [];
+      if (!hier.length) content.appendChild(empty('In diesem Raum ist noch kein Rätsel gelöst.'));
+      hier.forEach(function (id) { content.appendChild(el('p', { class: 'merksatz', text: ROOM.puzzles[id].title })); });
+      content.appendChild(el('button', { class: 'btn', text: 'Auswertung als Spielstand sichern', onclick: function () { saveFile(); toast('Spielstand mit Auswertung wurde heruntergeladen.', 5000); } }));
+    } else if (tab === 'fall') {
       content.appendChild(el('p', { class: 'muted', text: 'Team: ' + S.team.join(', ') }));
-      (ROOM && ROOM.caseText ? paras(ROOM.caseText(api)) : paras('Dr. Johanna Wendt ist verschwunden. Folgt ihren Spuren durch das Museum.')).forEach(function (p) { content.appendChild(p); });
+      (ROOM && ROOM.caseText ? paras(ROOM.caseText(api)) : paras('Ihr prüft das Zuchtbuch eines Hundezuchtvereins.')).forEach(function (p) { content.appendChild(p); });
       content.appendChild(el('p', { class: 'muted small', text: 'Notfall-Code (ins Logbuch schreiben): ' + makeCode() }));
     } else if (tab === 'funde') {
       if (!S.items.length) content.appendChild(empty('Noch keine Fundstücke.'));
@@ -311,10 +369,10 @@
       if (!keys.length) content.appendChild(empty('Noch keine Einträge.'));
       keys.forEach(function (k) { var a = S.answers[k]; content.appendChild(el('div', { class: 'akte-item' }, [el('strong', { text: a.title }), el('div', {}, paras(a.text))])); });
     } else if (tab === 'beweise') {
-      if (!S.evidence.length) content.appendChild(empty('Noch keine Beweisstücke für den Tresor.'));
+      if (!S.evidence.length) content.appendChild(empty('Noch keine Beweisstücke.'));
       S.evidence.forEach(function (ev) { content.appendChild(el('div', { class: 'akte-item evidence' }, [el('strong', { text: ev.title }), el('p', { text: ev.text })])); });
     }
-    var d = openDialog({ cls: 'dlg-akte', title: 'Forscherakte', body: [bar, content], focus: false });
+    var d = openDialog({ cls: 'dlg-akte', title: 'Gutachterakte', body: [bar, content], focus: false });
   }
 
   /* ---------------- Menü ---------------- */
@@ -330,7 +388,7 @@
         el('button', { class: 'btn ghost', text: 'Beenden und iPad freigeben', onclick: function () { d.close(); endGame(); } })
       ]),
       el('p', { class: 'muted small', text: 'Notfall-Code: ' + makeCode() }),
-      el('p', { class: 'muted small', text: 'Fassung: ' + ENGINE_BUILD })
+      el('p', { class: 'muted small', text: 'Fassung: ' + ENGINE_BUILD + ' · ' + ((ROOM && ROOM.version) || LEGACY_ROOMS) })
     ] });
   }
   function endGame() {
@@ -338,7 +396,7 @@
       el('p', { text: 'Habt ihr euren Spielstand gesichert und in WebWeaver hochgeladen? Beim Beenden wird alles von diesem iPad gelöscht.' }),
       el('div', { class: 'row end' }, [
         el('button', { class: 'btn ghost', text: 'Zurück', onclick: function () { d.close(); } }),
-        el('button', { class: 'btn', text: 'Ja, beenden', onclick: function () { try { localStorage.removeItem(STORE_KEY); sessionStorage.removeItem('tresor.confirmed'); } catch (e) {} location.href = BASE + 'index.html'; } })
+        el('button', { class: 'btn', text: 'Ja, beenden', onclick: function () { try { localStorage.removeItem(STORE_KEY); sessionStorage.removeItem('mendel.confirmed'); } catch (e) {} location.href = BASE + 'index.html'; } })
       ])
     ] });
   }
@@ -347,9 +405,11 @@
   function hashStr(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
   function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
   /* Pro Spielstand ein fester Startwert, damit die Reihenfolge beim erneuten Öffnen gleich bleibt. avoidIdentity: nie die Ausgangsreihenfolge. */
+  /* Ab 2.0: Startwert aus dem Teamnamen (gleiche Namen = gleiche Mischung und gleiche Simulationsläufe, auch nach Notfall-Code) */
+  function teamSeed() { return (S && S.team && S.team.length) ? (hashStr(S.team.map(function (n) { return String(n).trim().toLowerCase(); }).join('|')) % 2147483646) + 1 : Math.floor(Math.random() * 2147483647); }
   function seededShuffle(list, key, avoidIdentity) {
     var seed = 1;
-    if (S && S.vars) { S.vars.seed = S.vars.seed || Math.floor(Math.random() * 2147483647); seed = S.vars.seed; }
+    if (S && S.vars) { S.vars.seed = S.vars.seed || teamSeed(); seed = S.vars.seed; }
     var rnd = mulberry32(hashStr(String(seed) + '|' + key)), a = list.slice();
     for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(rnd() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; }
     if (avoidIdentity && a.length > 1 && a.every(function (x, k) { return x === list[k]; })) a.push(a.shift());
@@ -431,6 +491,73 @@
       return r;
     }
     return null;
+  }
+
+  /* ---------- Sammelwand (ab 2.0): sammelt jedes geöffnete Fundstück und Karten aus Wirkungen (onSolve.wall).
+     Karten lassen sich frei verschieben; die Position steht im Spielstand (S.vars.wallPos), geht aber nicht in die Auswertung ein. ---------- */
+  function isFound(id) {
+    if (String(id).indexOf('solved:') === 0) return isSolved(String(id).slice(7));
+    return S.docs.some(function (d) { return d.id === id; }) || (S.wall || []).some(function (c) { return c.id === id; });
+  }
+  function wallCards() {
+    var cards = [];
+    S.docs.forEach(function (d) {
+      if (d.kind !== 'doc' || !ROOM.docs[d.id]) return;
+      var dc = ROOM.docs[d.id];
+      cards.push({ id: d.id, title: dc.wallTitle || dc.title, tag: dc.tag || 'Fundstück', doc: d.id });
+    });
+    (S.wall || []).forEach(function (c) { cards.push(c); });
+    return cards;
+  }
+  function openWallCard(c) {
+    if (c.doc) { var dc = ROOM.docs[c.doc]; openDialog({ cls: 'dlg-doc ' + (dc.style || 'paper'), title: dc.title, body: docBody(dc, true) }); return; }
+    var txt = c.answer ? ((S.answers[c.answer] && S.answers[c.answer].text) || '') : (c.text || '');
+    openDialog({ cls: 'dlg-doc paper', title: c.title, body: [c.tag ? el('p', { class: 'muted small', text: c.tag }) : null, el('div', { class: 'doc-text' }, paras(txt)), c.table ? tableEl(c.table) : null] });
+  }
+  function openWall() {
+    S.vars.wallPos = S.vars.wallPos || {};
+    var cards = wallCards(), cols = 4, rowH = 92;
+    var board = el('div', { class: 'wall-board' });
+    board.style.height = Math.max(360, (Math.ceil(cards.length / cols) + 1) * rowH) + 'px';
+    if (!cards.length) board.appendChild(el('p', { class: 'muted', text: 'Noch nichts gefunden. Tippt im Raum auf Dinge, die ihr untersuchen wollt.' }));
+    cards.forEach(function (c, i) {
+      var pos = S.vars.wallPos[c.id] || [1.5 + (i % cols) * 24.6, 8 + Math.floor(i / cols) * rowH];
+      var card = el('div', { class: 'wall-card' + (c.kind ? ' k-' + c.kind : ''), role: 'button', tabindex: '0', 'aria-label': c.title + (c.tag ? ' (' + c.tag + ')' : ''),
+        style: 'left:' + pos[0] + '%;top:' + pos[1] + 'px' + (S.vars.wallPos[c.id] ? ';z-index:2' : '') }, [c.tag ? el('span', { class: 'wall-tag', text: c.tag }) : null, el('strong', { text: c.title })]);
+      var start = null, moved = false;
+      card.addEventListener('pointerdown', function (ev) {
+        start = { x: ev.clientX, y: ev.clientY, l: parseFloat(card.style.left), t: parseFloat(card.style.top), w: board.getBoundingClientRect().width }; moved = false;
+        try { card.setPointerCapture(ev.pointerId); } catch (e) {}
+      });
+      card.addEventListener('pointermove', function (ev) {
+        if (!start) return;
+        var dx = ev.clientX - start.x, dy = ev.clientY - start.y;
+        if (!moved && Math.abs(dx) + Math.abs(dy) < 8) return;
+        moved = true; card.classList.add('drag');
+        card.style.left = Math.max(0, Math.min(78, start.l + dx / start.w * 100)) + '%';
+        card.style.top = Math.max(0, start.t + dy) + 'px';
+      });
+      card.addEventListener('pointerup', function () {
+        if (!start) return;
+        card.classList.remove('drag');
+        if (moved) { S.vars.wallPos[c.id] = [parseFloat(card.style.left), parseFloat(card.style.top)]; card.style.zIndex = '2'; persist(); }
+        else openWallCard(c);
+        start = null;
+      });
+      card.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openWallCard(c); } });
+      board.appendChild(card);
+    });
+    var dlg = openDialog({ cls: 'dlg-wall', title: 'Sammelwand', focus: false, body: [
+      el('p', { class: 'muted small', text: 'Hier landet alles, was ihr geöffnet habt. Tippt eine Karte an, um sie zu lesen. Zieht Karten, um sie zu ordnen und zu gruppieren.' }),
+      board,
+      el('div', { class: 'row' }, [el('button', { class: 'btn ghost small', type: 'button', text: 'Karten neu ordnen', onclick: function () { S.vars.wallPos = {}; persist(); dlg.close(); openWall(); } })])
+    ] });
+  }
+  /* Beleg aus gespeicherten Simulationsläufen (für den Einspruch) */
+  function simEvidence(e) {
+    var sv = (S.vars.sim && S.vars.sim[e.sim]) || { runs: [] };
+    var rows = sv.runs.map(function (r) { return [r.label, r.summary]; });
+    return { id: e.id, title: e.title, text: e.text + (rows.length ? '' : '\n\nNoch keine gespeicherten Läufe.'), table: rows.length ? { head: ['Lauf', 'Ergebnis'], rows: rows } : null };
   }
 
   function openPuzzle(p) {
@@ -532,23 +659,25 @@
       body.push(pg.el, el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Auswahl prüfen', onclick: function () {
         var ids = pg.get().sort();
         if (!ids.length) { wrong(fb, 'Wählt zuerst mindestens eine Karte.'); return; }
-        if (p.count && ids.length !== p.count) { wrong(fb, 'Wählt genau ' + p.count + ' Karten.'); return; }
-        attempt(ids.join('-'));
+        if (p.count && ids.length !== p.count) { wrong(fb, p.count === 1 ? 'Wählt genau eine Karte.' : 'Wählt genau ' + p.count + ' Karten.'); return; }
+        var trap = (p.traps || []).filter(function (t) { return ids.indexOf(t.id) !== -1; })[0];
+        attempt(ids.join('-'), trap ? trap.text : null);
       } })]));
     }
     if (p.type === 'cloze') {
       var picks = {};
-      var line = el('div', { class: 'cloze' });
+      var line = el('div', { class: 'cloze' }), row = el('div', { class: 'cloze-row' }); line.appendChild(row);
       var order = [];
       p.parts.forEach(function (part) {
-        if (typeof part === 'string') { line.appendChild(document.createTextNode(part)); return; }
-        if (part.strong) { line.appendChild(el('strong', { text: part.strong })); return; }
+        if (part && part.nl) { row = el('div', { class: 'cloze-row' }); line.appendChild(row); return; }
+        if (typeof part === 'string') { row.appendChild(document.createTextNode(part)); return; }
+        if (part.strong) { row.appendChild(el('strong', { text: part.strong })); return; }
         order.push(part.gap);
-        var sl = el('select', { class: 'gap', 'aria-label': part.label || ('Lücke ' + order.length) });
+        var sl = el('select', { class: 'gap' + (part.block ? ' block' : ''), 'aria-label': part.label || ('Lücke ' + order.length) });
         sl.appendChild(el('option', { value: '', text: '… auswählen …' }));
         seededShuffle(p.gaps[part.gap], p.id + part.gap).forEach(function (o) { sl.appendChild(el('option', { value: o.id, text: o.label })); });
         sl.addEventListener('change', function () { picks[part.gap] = sl.value; fb.textContent = ''; });
-        line.appendChild(sl);
+        row.appendChild(sl);
       });
       body.push(line, el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Satz prüfen', onclick: function () {
         if (order.some(function (g) { return !picks[g]; })) { wrong(fb, 'Füllt zuerst alle Lücken aus.'); return; }
@@ -575,16 +704,17 @@
           ' · Begründung 1 ' + (a ? 'gewählt' : 'fehlt noch') + ' · Begründung 2 ' + (b ? 'gewählt' : 'fehlt noch');
       }
       gSt = optGroup(p.statements, 'one', upd);
-      gEv = optGroup(p.evidence.map(function (e) { return { id: e.id, label: e.title }; }), 'many', upd, 2);
+      var evList = p.evidencePool ? p.evidencePool.filter(function (e) { return !e.needs || isFound(e.needs); }).map(function (e) { return e.sim ? simEvidence(e) : e; }) : p.evidence;
+      gEv = optGroup(evList.map(function (e) { return { id: e.id, label: e.title }; }), 'many', upd, p.maxEvidence || 2);
       gA = optGroup(seededShuffle(p.slotA.options, p.id + 'A'), 'one', upd);
       gB = optGroup(seededShuffle(p.slotB.options, p.id + 'B'), 'one', upd);
       upd();
-      var mappe = el('div', { class: 'mappe' }, p.evidence.map(function (e) {
+      var mappe = el('div', { class: 'mappe' }, evList.map(function (e) {
         return el('details', { class: 'evi' }, [el('summary', { text: e.title })].concat(docBody(e)));
       }));
       gSt.el.classList.add('grid2'); gEv.el.classList.add('grid2'); gA.el.classList.add('grid2'); gB.el.classList.add('grid2');
       body.push(el('h3', { text: '1 · Welche Aussage greift ihr an?' }), gSt.el,
-        el('h3', { text: '2 · Belegmappe lesen und höchstens zwei Belege vorlegen' }), mappe, gEv.el,
+        el('h3', { text: p.evidenceTitle || '2 · Belegmappe lesen und höchstens zwei Belege vorlegen' }), mappe, gEv.el,
         el('h3', { text: '3 · ' + p.slotA.label }), gA.el,
         el('h3', { text: '4 · ' + p.slotB.label }), gB.el, sum, konterBox,
         el('div', { class: 'row end' }, [el('button', { class: 'btn', text: 'Einspruch!', onclick: function () {
@@ -649,7 +779,8 @@
     /* ---------- Nachfragen (ab 1.4) ---------- */
     if (p.type === 'nachfragen') {
       var nsel = {};
-      var annBox = el('div', { class: 'annahmen' }, [el('strong', { text: p.optionsTitle || 'Annahmen' })].concat(p.options.map(function (o) { return el('p', { text: o.full || o.label }); })));
+      var nOpts = p.shuffleOptions ? seededShuffle(p.options, p.id, true) : p.options;
+      var annBox = el('div', { class: 'annahmen' }, [el('strong', { text: p.optionsTitle || 'Annahmen' })].concat(nOpts.map(function (o) { return el('p', { text: o.full || o.label }); })));
       var nrows = el('div', { class: 'nf-rows' });
       p.rows.forEach(function (r) {
         var replyBox = el('div', { class: 'nf-reply', 'aria-live': 'polite' });
@@ -658,27 +789,39 @@
           if (asked) return; asked = true; askBtn.disabled = true; logEvent('nachfragen ' + p.id + ' ' + r.id);
           replyBox.appendChild(figureBlock(p.from || 'hallmann', r.reply));
         } });
-        var sl = el('select', { class: 'gap', 'aria-label': 'Annahme für ' + r.say.split(' ')[0] });
-        sl.appendChild(el('option', { value: '', text: '… Annahme wählen …' }));
-        p.options.forEach(function (o) { sl.appendChild(el('option', { value: o.id, text: o.label })); });
+        var sl = el('select', { class: 'gap', 'aria-label': (p.selectAria || 'Annahme für ') + r.say.split(' ')[0] });
+        sl.appendChild(el('option', { value: '', text: p.selectPlaceholder || '… Annahme wählen …' }));
+        nOpts.forEach(function (o) { sl.appendChild(el('option', { value: o.id, text: o.label })); });
         sl.addEventListener('change', function () { nsel[r.id] = sl.value; fb.textContent = ''; });
         nrows.appendChild(el('div', { class: 'nf-row' }, [el('p', { class: 'nf-say', text: r.say }), el('div', { class: 'nf-line' }, [askBtn, el('label', { class: 'nf-label' }, [(p.selectLabel || 'Setzt voraus: '), sl])]), replyBox]));
       });
       body.push(annBox, nrows, el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Annahmen prüfen', onclick: function () {
-        if (p.rows.some(function (r) { return !nsel[r.id]; })) { wrong(fb, 'Wählt zuerst für jede Deutung eine Annahme.'); return; }
+        if (p.rows.some(function (r) { return !nsel[r.id]; })) { wrong(fb, p.missingText || 'Wählt zuerst für jede Deutung eine Annahme.'); return; }
         attempt(p.rows.map(function (r) { return r.id + '=' + nsel[r.id]; }).sort().join(';'));
       } })]));
     }
     /* ---------- Netz verbinden (ab 1.4) ---------- */
     if (p.type === 'net') {
       var edges = [], from = null, nodeEls = {}, SVGNS = 'http://www.w3.org/2000/svg';
-      var nstage = el('div', { class: 'net-stage' });
+      var nstage = el('div', { class: 'net-stage', style: p.height ? 'height:' + p.height + 'px' : null });
+      var netPos = {};
+      if (p.slots) {   /* ab 2.0: Karten auf feste Plätze gemischt verteilen, je Gruppe (z. B. zwei Spalten) */
+        var groups = {}; p.items.forEach(function (it) { (groups[it.group || 'all'] = groups[it.group || 'all'] || []).push(it); });
+        Object.keys(groups).forEach(function (g) {
+          var slots = Array.isArray(p.slots) ? p.slots : p.slots[g];
+          seededShuffle(groups[g], p.id + '#' + g).forEach(function (it, i) { netPos[it.id] = slots[i]; });
+        });
+      }
       var svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('class', 'net-lines'); svg.setAttribute('aria-hidden', 'true');
       svg.innerHTML = '<defs><marker id="net-arr-' + p.id + '" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L10,5 L0,10 z" fill="#E6C27A"/></marker></defs>';
       nstage.appendChild(svg);
-      var nstatus = el('p', { class: 'muted small net-status', 'aria-live': 'polite', text: 'Tippt eine Karte an, von der ein Pfeil ausgeht, und dann die Karte, auf die er zeigt.' });
+      /* ab 2.0: p.lines = Linien ohne Richtung; die Kante wird in der Reihenfolge von p.groupOrder gespeichert (z. B. Ausrede>Befund) */
+      var grpIdx = function (id) { var it = p.items.filter(function (x) { return x.id === id; })[0]; var i = (p.groupOrder || []).indexOf(it && it.group); return i < 0 ? 99 : i; };
+      var edgeKey = function (a, b) { if (!p.lines) return a + '>' + b; var ia = grpIdx(a), ib = grpIdx(b); return (ia < ib || (ia === ib && a < b)) ? a + '>' + b : b + '>' + a; };
+      var arrowWord = p.lines ? 'Linie' : 'Pfeil';
+      var nstatus = el('p', { class: 'muted small net-status', 'aria-live': 'polite', text: p.lines ? 'Tippt eine Karte an und dann die Karte, mit der ihr sie verbinden wollt.' : 'Tippt eine Karte an, von der ein Pfeil ausgeht, und dann die Karte, auf die er zeigt.' });
       var elist = el('div', { class: 'net-edges' });
-      var tagOf = {}; p.items.forEach(function (it) { tagOf[it.id] = it.tag || it.id; });
+      var tagOf = {}; p.items.forEach(function (it) { tagOf[it.id] = it.tag || it.label || it.id; });
       function paintNodes() { p.items.forEach(function (it) { nodeEls[it.id].classList.toggle('from', from === it.id); }); }
       function redraw() {
         [].slice.call(svg.querySelectorAll('line')).forEach(function (l) { l.remove(); });
@@ -692,46 +835,53 @@
           var ln = document.createElementNS(SVGNS, 'line');
           ln.setAttribute('x1', a.x + dx * tA); ln.setAttribute('y1', a.y + dy * tA);
           ln.setAttribute('x2', b.x - dx * tB); ln.setAttribute('y2', b.y - dy * tB);
-          ln.setAttribute('stroke', '#E6C27A'); ln.setAttribute('stroke-width', '3'); ln.setAttribute('marker-end', 'url(#net-arr-' + p.id + ')');
+          ln.setAttribute('stroke', '#E6C27A'); ln.setAttribute('stroke-width', '3'); if (!p.lines) ln.setAttribute('marker-end', 'url(#net-arr-' + p.id + ')');
           svg.appendChild(ln);
         });
       }
       function renderEdges() {
         elist.innerHTML = '';
-        if (!edges.length) { elist.appendChild(el('p', { class: 'muted small', text: 'Noch keine Pfeile gesetzt.' })); return; }
+        if (!edges.length) { elist.appendChild(el('p', { class: 'muted small', text: p.lines ? 'Noch keine Linien gezogen.' : 'Noch keine Pfeile gesetzt.' })); return; }
         edges.forEach(function (k) {
           var ab = k.split('>');
-          elist.appendChild(el('button', { class: 'btn ghost small edge', type: 'button', 'aria-label': 'Pfeil ' + tagOf[ab[0]] + ' nach ' + tagOf[ab[1]] + ' entfernen', text: tagOf[ab[0]] + ' → ' + tagOf[ab[1]] + '  ✕', onclick: function () {
+          elist.appendChild(el('button', { class: 'btn ghost small edge', type: 'button', 'aria-label': arrowWord + ' ' + tagOf[ab[0]] + (p.lines ? ' mit ' : ' nach ') + tagOf[ab[1]] + ' entfernen', text: tagOf[ab[0]] + (p.lines ? ' – ' : ' → ') + tagOf[ab[1]] + '  ✕', onclick: function () {
             edges.splice(edges.indexOf(k), 1); redraw(); renderEdges(); fb.textContent = '';
           } }));
         });
-        elist.appendChild(el('button', { class: 'btn ghost small', type: 'button', text: 'Alle Pfeile löschen', onclick: function () { edges = []; from = null; paintNodes(); redraw(); renderEdges(); fb.textContent = ''; } }));
+        elist.appendChild(el('button', { class: 'btn ghost small', type: 'button', text: p.lines ? 'Alle Linien löschen' : 'Alle Pfeile löschen', onclick: function () { edges = []; from = null; paintNodes(); redraw(); renderEdges(); fb.textContent = ''; } }));
       }
       p.items.forEach(function (it) {
-        var pos = (p.layout && p.layout[it.id]) || [50, 50];
+        var pos = netPos[it.id] || (p.layout && p.layout[it.id]) || [50, 50];
         var nb = el('button', { class: 'net-node', type: 'button', style: 'left:' + pos[0] + '%;top:' + pos[1] + '%', onclick: function () {
-          if (!from) { from = it.id; paintNodes(); nstatus.textContent = 'Der Pfeil beginnt bei ' + tagOf[it.id] + '. Tippt jetzt die Karte, auf die er zeigt.'; return; }
-          if (from === it.id) { from = null; paintNodes(); nstatus.textContent = 'Abgebrochen. Tippt eine Karte an, von der ein Pfeil ausgeht.'; return; }
-          var key = from + '>' + it.id;
+          if (!from) { from = it.id; paintNodes(); nstatus.textContent = p.lines ? 'Die Linie beginnt bei ' + tagOf[it.id] + '. Tippt jetzt die Karte, mit der ihr sie verbindet.' : 'Der Pfeil beginnt bei ' + tagOf[it.id] + '. Tippt jetzt die Karte, auf die er zeigt.'; return; }
+          if (from === it.id) { from = null; paintNodes(); nstatus.textContent = 'Abgebrochen. Tippt eine Karte an.'; return; }
+          var key = edgeKey(from, it.id);
           if (edges.indexOf(key) === -1) edges.push(key);
-          nstatus.textContent = 'Pfeil gesetzt: ' + tagOf[from] + ' → ' + tagOf[it.id] + '.';
+          nstatus.textContent = p.lines ? 'Linie gezogen: ' + tagOf[from] + ' – ' + tagOf[it.id] + '.' : 'Pfeil gesetzt: ' + tagOf[from] + ' → ' + tagOf[it.id] + '.';
           from = null; paintNodes(); redraw(); renderEdges(); fb.textContent = '';
         } }, [el('strong', { text: it.tag || '' }), el('span', { text: it.label })]);
         nodeEls[it.id] = nb; nstage.appendChild(nb);
       });
       body.push(nstage, nstatus, elist, el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Verbindungen prüfen', onclick: function () {
-        if (edges.length < (p.minEdges || 3)) { wrong(fb, 'Setzt zuerst Pfeile zwischen den Karten.'); return; }
+        if (edges.length < (p.minEdges || 3)) { wrong(fb, p.lines ? 'Zieht zuerst Linien zwischen den Karten.' : 'Setzt zuerst Pfeile zwischen den Karten.'); return; }
         var sorted = edges.slice().sort(), msg = null;
         if (!check(p.id, sorted.join(';'), p.hash)) {
-          var rv = function (k) { var ab = k.split('>'); return ab[1] + '>' + ab[0]; };
-          var okSet = function (l) { return check(p.id, l.slice().sort().join(';'), p.hash); };
-          if (okSet(edges.map(rv))) msg = 'Alle Pfeile zeigen in die falsche Richtung.';
-          else {
-            for (var q = 0; q < edges.length && !msg; q++) { var c = edges.slice(); c[q] = rv(c[q]); if (okSet(c)) msg = 'Ein Pfeil zeigt in die falsche Richtung.'; }
-            if (!msg && p.edgeCount && edges.length < p.edgeCount) msg = 'Es fehlt noch mindestens eine Verbindung.';
-            else if (!msg && p.edgeCount && edges.length > p.edgeCount) msg = 'Mindestens ein Pfeil ist zu viel.';
+          if (p.edgeHash) {
+            /* Pro Pfeil: gehört er zu einer gültigen Lösung (edgeHash), ist er nur verdreht, oder gehört er nicht dazu? */
+            var turned = 0, foreign = 0;
+            edges.forEach(function (k) {
+              if (check(p.id + '-edge', k, p.edgeHash)) return;
+              var ab = k.split('>');
+              if (!p.lines && check(p.id + '-edge', ab[1] + '>' + ab[0], p.edgeHash)) turned++; else foreign++;
+            });
+            var parts = [];
+            if (turned) parts.push('Mindestens ein Pfeil zeigt in die falsche Richtung.');
+            if (foreign) parts.push(p.lines ? 'Mindestens eine Linie verbindet Karten, die nicht zusammengehören.' : 'Mindestens ein Pfeil gehört nicht zum Netz.');
+            if (!parts.length && p.edgeCount && edges.length < p.edgeCount) parts.push('Es fehlt noch mindestens eine Verbindung.');
+            else if (!parts.length && p.edgeCount && edges.length > p.edgeCount) parts.push(p.lines ? 'Mindestens eine Linie ist zu viel.' : 'Mindestens ein Pfeil ist zu viel.');
+            else if (!parts.length) parts.push('Die Pfeile passen einzeln, aber zusammen noch nicht.');
+            msg = 'Nichts passiert. ' + parts.join(' ');
           }
-          if (msg) msg = 'Nichts passiert. ' + msg;
         }
         attempt(sorted.join(';'), msg);
       } })]));
@@ -740,7 +890,190 @@
       if (window.ResizeObserver) { try { new ResizeObserver(function () { redraw(); }).observe(nstage); } catch (e) {} }
     }
     /* ---------- Aufgabe auf Papier mit Selbstabgleich (ab 1.4) ---------- */
-    if (p.type === 'paper') {
+    /* ---------- Untersuchungsobjekt (ab 1.8, „zeigen“ schrittweise ab 1.9) ----------
+       Bild mit Werkzeugen (tools, optional). Eine Stelle (spot) ist in den Ansichten sichtbar, die spot.tools nennt
+       (Standard: nur in der Ansicht spot.tool, ohne Angabe nur ohne Werkzeug). Antippen zeigt den Befund.
+       mode 'zeigen':    eine Aussage (rows) nach der anderen; das Team tippt die Stelle an, die sie belegt, oder „Nicht erkennbar“ ('nein').
+                         Antwort: rowId=spotId;… sortiert. Teilprüfung je Kategorie (spot.cat, 'nein'): cat=rowIds.
+       mode 'markieren': Stellen mit Stiften (pens) markieren, unmarkiert heißt „nichts“.
+                         Antwort: penId=spotIds;… in Stift-Reihenfolge. Teilprüfung je Stift (partBy 'pen') oder je Werkzeug (partBy 'tool': tool=spotIds). */
+    if (p.type === 'objekt') {
+      var tool = null, found = {}, oMarks = {}, oRows = {}, current = null, step = 0;
+      var penTag = function (id) { var q = (p.pens || []).filter(function (x) { return x.id === id; })[0]; return q ? (q.tag || q.label) : ''; };
+      var spotById = function (id) { return p.spots.filter(function (x) { return x.id === id; })[0]; };
+      var viewsOf = function (sp) { return sp.tools || [sp.tool || null]; };
+      var img = el('img', { src: p.image, alt: p.imageAlt || '' });
+      var spotLayer = el('div', { class: 'obj-spots' });
+      var objStage = el('div', { class: 'obj-stage' }, [img, spotLayer]);
+      var befund = el('div', { class: 'obj-befund', 'aria-live': 'polite' });
+      var spotBtns = {};
+      p.spots.forEach(function (sp) {
+        var tagEl = el('span', { class: 'obj-tag' });
+        var b = el('button', { class: 'obj-spot', type: 'button', style: 'left:' + sp.x + '%;top:' + sp.y + '%;width:' + sp.w + '%;height:' + sp.h + '%', 'aria-label': sp.label, onclick: function () { showSpot(sp); } }, [tagEl]);
+        b._tag = tagEl; spotBtns[sp.id] = b; spotLayer.appendChild(b);
+      });
+      var paintSpots = function () {
+        p.spots.forEach(function (sp) {
+          var b = spotBtns[sp.id];
+          b.hidden = viewsOf(sp).indexOf(tool) === -1; b.classList.toggle('sel', current === sp.id); b.classList.toggle('marked', !!oMarks[sp.id]);
+          b._tag.textContent = oMarks[sp.id] ? penTag(oMarks[sp.id]) : (found[sp.id] ? sp.label : '');
+          b.setAttribute('aria-label', sp.label + (oMarks[sp.id] ? ' (markiert: ' + penTag(oMarks[sp.id]) + ')' : ''));
+        });
+      };
+      var toolRow = null, toolBtns = {};
+      if (p.tools && p.tools.length) {
+        toolRow = el('div', { class: 'pens obj-tools', role: 'radiogroup', 'aria-label': 'Werkzeug' });
+        [{ id: null, label: p.baseLabel || 'Ohne Werkzeug' }].concat(p.tools).forEach(function (t) {
+          var tb = el('button', { class: 'pen' + (t.id === tool ? ' on' : ''), type: 'button', role: 'radio', 'aria-checked': t.id === tool ? 'true' : 'false', onclick: function () {
+            tool = t.id; logEvent('werkzeug ' + p.id + ' ' + (t.id || 'ohne'));
+            Object.keys(toolBtns).forEach(function (k) { var on = String(tool) === k; toolBtns[k].classList.toggle('on', on); toolBtns[k].setAttribute('aria-checked', on ? 'true' : 'false'); });
+            img.src = (p.views && tool && p.views[tool]) || p.image;
+            if (current && viewsOf(spotById(current)).indexOf(tool) === -1) current = null;
+            if (!current) showHint(t.hint || ('Ansicht: ' + t.label + '. Tippt auf eine umrandete Stelle.'));
+            paintSpots(); fb.textContent = '';
+          } }, [el('strong', { text: t.label })]);
+          toolBtns[String(t.id)] = tb; toolRow.appendChild(tb);
+        });
+      }
+      function showHint(t) { befund.innerHTML = ''; befund.appendChild(el('p', { class: 'muted', text: t })); }
+      /* --- zeigen: eine Aussage nach der anderen --- */
+      var stepBox = el('div', { class: 'obj-step' }), listBox = el('div', { class: 'obj-list' });
+      var nextOpen = function (from) { for (var k = 0; k < p.rows.length; k++) { var j = (from + k) % p.rows.length; if (!oRows[p.rows[j].id]) return j; } return -1; };
+      var answerLabel = function (v) { return v === 'nein' ? (p.noneLabel || 'Nicht erkennbar') : spotById(v).label; };
+      function assign(v) {
+        oRows[p.rows[step].id] = v; fb.textContent = ''; current = null;
+        var nx = nextOpen(step + 1); step = nx === -1 ? step : nx; renderSteps(nx === -1);
+        showHint(nx === -1 ? 'Alle Aussagen sind belegt. Prüft eure Auswahl unten in der Liste, dann „' + (p.button || 'Prüfen') + '“.' : (p.stepHint || 'Tippt auf die Stelle, die diese Aussage belegt.'));
+        paintSpots();
+      }
+      function renderSteps(done) {
+        stepBox.innerHTML = '';
+        if (!done) {
+          stepBox.appendChild(el('p', { class: 'obj-step-nr', text: 'Aussage ' + (step + 1) + ' von ' + p.rows.length }));
+          stepBox.appendChild(el('p', { class: 'obj-step-text', text: '„' + p.rows[step].label + '“' }));
+          stepBox.appendChild(el('div', { class: 'row' }, [el('button', { class: 'btn ghost small', type: 'button', text: p.noneLabel || 'Nicht erkennbar', onclick: function () { assign('nein'); } })]));
+        } else stepBox.appendChild(el('p', { class: 'obj-step-nr', text: 'Alle ' + p.rows.length + ' Aussagen belegt' }));
+        listBox.innerHTML = '';
+        p.rows.forEach(function (rw, i) {
+          var v = oRows[rw.id];
+          listBox.appendChild(el('button', { class: 'obj-li' + (i === step && !done ? ' on' : ''), type: 'button', onclick: function () { step = i; renderSteps(false); showHint(p.stepHint || 'Tippt auf die Stelle, die diese Aussage belegt.'); } },
+            [el('span', { class: 'obj-li-nr', text: (i + 1) + '' }), el('span', { class: 'obj-li-text', text: rw.label }), el('strong', { class: 'obj-li-ans', text: v ? answerLabel(v) : '…' })]));
+        });
+      }
+      function showSpot(sp) {
+        current = sp.id; if (!found[sp.id]) { found[sp.id] = true; logEvent('befund ' + p.id + ' ' + sp.id); }
+        befund.innerHTML = '';
+        befund.appendChild(el('p', {}, [el('strong', { text: sp.label + ': ' }), sp.text]));
+        if (p.mode === 'markieren') {
+          var r = el('div', { class: 'row' });
+          p.pens.forEach(function (q) {
+            r.appendChild(el('button', { class: 'btn small' + (oMarks[sp.id] === q.id ? '' : ' ghost'), type: 'button', text: (oMarks[sp.id] === q.id ? '✓ ' : '') + q.label, onclick: function () { oMarks[sp.id] = q.id; fb.textContent = ''; showSpot(sp); } }));
+          });
+          if (oMarks[sp.id]) r.appendChild(el('button', { class: 'btn ghost small', type: 'button', text: 'Markierung entfernen', onclick: function () { delete oMarks[sp.id]; fb.textContent = ''; showSpot(sp); } }));
+          befund.appendChild(r);
+        } else if (!sp.noRow) {
+          befund.appendChild(el('div', { class: 'row' }, [el('button', { class: 'btn small', type: 'button', text: 'Das belegt Aussage ' + (step + 1), onclick: function () { assign(sp.id); } })]));
+        }
+        paintSpots();
+      }
+      var side;
+      if (p.mode === 'zeigen') { side = [stepBox, befund, listBox]; renderSteps(false); showHint(p.startText || 'Tippt auf die Stelle am Objekt, die diese Aussage belegt.'); }
+      else { side = [befund, p.note ? el('p', { class: 'muted small', text: p.note }) : null]; showHint(p.startText || 'Tippt auf eine umrandete Stelle.'); }
+      paintSpots();
+      body.push(el('div', { class: 'obj-wrap' }, [el('div', { class: 'obj-left' }, [toolRow, objStage]), el('div', { class: 'obj-right' }, side)]),
+        el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Prüfen', onclick: function () {
+          var full, parts = [], msg = null;
+          if (p.mode === 'zeigen') {
+            if (p.rows.some(function (rw) { return !oRows[rw.id]; })) { wrong(fb, 'Belegt zuerst jede Aussage oder wählt „' + (p.noneLabel || 'Nicht erkennbar') + '“.'); return; }
+            full = p.rows.map(function (rw) { return rw.id + '=' + oRows[rw.id]; }).sort().join(';');
+            var catOf = function (v) { if (v === 'nein') return 'nein'; var s = spotById(v); return s && s.cat; };
+            (p.parts || []).forEach(function (pt) {
+              var ids = p.rows.filter(function (rw) { return catOf(oRows[rw.id]) === pt.id; }).map(function (rw) { return rw.id; }).sort();
+              parts.push(pt.label + ': ' + (check(p.id + '-' + pt.id, pt.id + '=' + ids.join('-'), pt.hash) ? 'stimmt' : 'stimmt noch nicht'));
+            });
+          } else {
+            var ids = Object.keys(oMarks);
+            if (!ids.length) { wrong(fb, 'Markiert zuerst mindestens eine Stelle.'); return; }
+            full = p.pens.map(function (q) { return q.id + '=' + ids.filter(function (k) { return oMarks[k] === q.id; }).sort().join('-'); }).join(';');
+            (p.parts || []).forEach(function (pt) {
+              var key = p.partBy === 'tool'
+                ? pt.id + '=' + ids.filter(function (k) { return (spotById(k).tool || 'ohne') === pt.id; }).sort().join('-')
+                : pt.id + '=' + ids.filter(function (k) { return oMarks[k] === pt.id; }).sort().join('-');
+              parts.push(pt.label + ': ' + (check(p.id + '-' + pt.id, key, pt.hash) ? 'stimmt' : 'stimmt noch nicht'));
+            });
+          }
+          if (parts.length && !check(p.id, full, p.hash)) msg = 'Nichts passiert. ' + parts.join(' · ') + '.';
+          attempt(full, msg);
+        } })]));
+    }
+    /* ---------- Widerspruch markieren (ab 1.8): links und rechts je eine Angabe antippen. Antwort: linksId|rechtsId ---------- */
+    if (p.type === 'widerspruch') {
+      var wSel = { l: null, r: null }, wBtns = { l: {}, r: {} };
+      var wSide = function (key, side) {
+        var col = el('div', { class: 'wd-col' }, [el('h3', { text: side.title })]);
+        side.blocks.forEach(function (bl) {
+          var items = el('div', { class: 'wd-items' });
+          var box = el('div', { class: 'wd-block' }, (bl.title ? [el('strong', { class: 'wd-title', text: bl.title })] : []).concat([items]));
+          bl.items.forEach(function (it) {
+            var b = el('button', { class: 'wd-item', type: 'button', 'aria-pressed': 'false', onclick: function () {
+              wSel[key] = wSel[key] === it.id ? null : it.id; fb.textContent = '';
+              Object.keys(wBtns[key]).forEach(function (k) { var on = wSel[key] === k; wBtns[key][k].classList.toggle('on', on); wBtns[key][k].setAttribute('aria-pressed', on ? 'true' : 'false'); wBtns[key][k]._tag.textContent = on ? ' [gewählt]' : ''; });
+            } }, [el('span', { text: it.label })]);
+            b._tag = el('span', { class: 'seg-tag' }); b.appendChild(b._tag);
+            wBtns[key][it.id] = b; items.appendChild(b);
+          });
+          col.appendChild(box);
+        });
+        return col;
+      };
+      body.push(el('div', { class: 'wd-wrap' }, [wSide('l', p.left), wSide('r', p.right)]),
+        el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Widerspruch prüfen', onclick: function () {
+          if (!wSel.l || !wSel.r) { wrong(fb, 'Tippt links und rechts je eine Angabe an.'); return; }
+          attempt(wSel.l + '|' + wSel.r);
+        } })]));
+    }
+    /* ---------- Tabelle ausfüllen (ab 1.8): Zelle antippen schaltet weiter. Antwort: spalte=z1-z2-…;… sortiert, Teilprüfung je Spalte ---------- */
+    if (p.type === 'tabelle') {
+      var cells = {};
+      var tState = function (id) { return p.states.filter(function (x) { return x.id === id; })[0]; };
+      var thead = el('tr', {}, [el('th', { text: p.cornerLabel || 'Merkmal' })].concat(p.cols.map(function (c) { return el('th', { text: c.label }); })));
+      var tbody = el('tbody');
+      p.rows.forEach(function (rw) {
+        var tr = el('tr', {}, [el('th', { text: rw.label })]);
+        p.cols.forEach(function (c) {
+          var key = c.id + '|' + rw.id;
+          var b = el('button', { class: 'tb-cell', type: 'button', text: '…', 'aria-label': rw.label + ', ' + c.label + ': leer', onclick: function () {
+            var i = cells[key] ? p.states.map(function (x) { return x.id; }).indexOf(cells[key]) + 1 : 0;
+            cells[key] = i < p.states.length ? p.states[i].id : null; if (!cells[key]) delete cells[key];
+            var stt = cells[key] && tState(cells[key]);
+            b.textContent = stt ? stt.label : '…'; b.className = 'tb-cell' + (stt ? ' s-' + stt.id : '');
+            b.setAttribute('aria-label', rw.label + ', ' + c.label + ': ' + (stt ? stt.label : 'leer')); fb.textContent = '';
+          } });
+          tr.appendChild(el('td', {}, [b]));
+        });
+        tbody.appendChild(tr);
+      });
+      body.push(el('p', { class: 'muted small', text: 'Jedes Antippen schaltet weiter: ' + p.states.map(function (x) { return x.label; }).join(' → ') + ' → leer.' }),
+        el('div', { class: 'tbl-wrap' }, [el('table', { class: 'data tb-fill' }, [el('thead', {}, [thead]), tbody])]),
+        el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Tabelle prüfen', onclick: function () {
+          if (Object.keys(cells).length < p.rows.length * p.cols.length) { wrong(fb, 'Füllt zuerst alle Zellen aus.'); return; }
+          var colAns = function (c) { return c.id + '=' + p.rows.map(function (rw) { return cells[c.id + '|' + rw.id]; }).join('-'); };
+          var full = p.cols.map(colAns).sort().join(';'), msg = null;
+          if (p.colHash && !check(p.id, full, p.hash)) msg = 'Nichts passiert. ' + p.cols.map(function (c) { return c.label + ': ' + (check(p.id + '-' + c.id, colAns(c), p.colHash[c.id]) ? 'stimmt' : 'stimmt noch nicht'); }).join(' · ') + '.';
+          attempt(full, msg);
+        } })]));
+    }
+    if (p.type === 'paper' && !p.sample) {
+      /* Papier-Aufgabe ohne Musterlösung (ab 1.8): ein Haken, dann fertig */
+      var pcb = el('input', { type: 'checkbox', id: 'paper-ok1' });
+      body.push(el('p', { class: 'paper-task' }, [el('strong', { text: 'Auf Papier (Logbuch): ' }), p.paperTask]),
+        el('label', { class: 'check' }, [pcb, ' ' + (p.doneText || 'Wir haben es ins Logbuch geschrieben.')]),
+        el('div', { class: 'row end' }, [el('button', { class: 'btn', text: 'Fertig', onclick: function () {
+          if (!pcb.checked) { wrong(fb, 'Erledigt zuerst den Auftrag im Logbuch und setzt dann den Haken.'); return; }
+          logEvent('papier ' + p.id); d.close(); solve(p, {});
+        } })]));
+    }
+    if (p.type === 'paper' && p.sample) {
       var cb1 = el('input', { type: 'checkbox', id: 'paper-ok1' }), cb2 = el('input', { type: 'checkbox', id: 'paper-ok2' });
       var step2 = el('div', { class: 'paper-step2' }); step2.hidden = true;
       var sample = el('ol', { class: 'sample-chain' }, p.sample.map(function (t) { return el('li', { text: t }); }));
@@ -763,20 +1096,94 @@
       ]);
       body.push(go1, step2);
     }
+    /* ---------- Simulation (ab 2.0): Regler, Zufall aus dem Teamnamen, gespeicherte Läufe.
+       Das Modell ist eine Funktion in ROOM.models[p.model](einstellung, zufall) und liefert { table, summary }. ---------- */
+    if (p.type === 'sim') {
+      S.vars.sim = S.vars.sim || {};
+      var sv = S.vars.sim[p.id] = S.vars.sim[p.id] || { count: 0, runs: [] };
+      var setting = {};
+      p.controls.forEach(function (c) { setting[c.id] = c.def || c.options[0].id; });
+      var optLabel = function (c, v) { return c.options.filter(function (o) { return o.id === v; })[0].label; };
+      var labelOf = function (st) { return p.controls.map(function (c) { return (c.short || c.label) + ': ' + optLabel(c, st[c.id]); }).join(' · '); };
+      var ctlBox = el('div', { class: 'sim-controls' });
+      p.controls.forEach(function (c) {
+        var btns = {}, row = el('div', { class: 'sim-ctl', role: 'radiogroup', 'aria-label': c.label }, [el('strong', { class: 'sim-ctl-label', text: c.label })]);
+        c.options.forEach(function (o) {
+          var b = el('button', { class: 'pen' + (setting[c.id] === o.id ? ' on' : ''), type: 'button', role: 'radio', 'aria-checked': setting[c.id] === o.id ? 'true' : 'false', text: o.label, onclick: function () {
+            setting[c.id] = o.id; fb.textContent = '';
+            Object.keys(btns).forEach(function (k) { btns[k].classList.toggle('on', k === o.id); btns[k].setAttribute('aria-checked', k === o.id ? 'true' : 'false'); });
+          } });
+          btns[o.id] = b; row.appendChild(b);
+        });
+        ctlBox.appendChild(row);
+      });
+      var out = el('div', { class: 'sim-out', 'aria-live': 'polite' }, [el('p', { class: 'muted', text: p.startText || 'Stellt die Regler ein und startet den Versuch.' })]);
+      var savedBox = el('div', { class: 'sim-saved' }), last = null;
+      var needMet = function () {
+        var nd = p.need || {}, ok = sv.runs.length >= (nd.min || 1);
+        if (nd.per) p.controls.filter(function (c) { return c.id === nd.per.control; })[0].options.forEach(function (o) {
+          if (sv.runs.filter(function (r) { return r.setting[nd.per.control] === o.id; }).length < nd.per.min) ok = false;
+        });
+        return ok;
+      };
+      var renderSaved = function () {
+        savedBox.innerHTML = '';
+        savedBox.appendChild(el('strong', { text: 'Gespeicherte Läufe: ' + sv.runs.length + (p.need && p.need.min ? ' (nötig: ' + p.need.min + (p.need.per ? ', davon je ' + p.need.per.min + ' je Einstellung „' + p.controls.filter(function (c) { return c.id === p.need.per.control; })[0].label + '“' : '') + ')' : '') }));
+        sv.runs.forEach(function (r) { savedBox.appendChild(el('p', { class: 'small', text: r.label + ': ' + r.summary })); });
+      };
+      var saveBtn = el('button', { class: 'btn ghost', type: 'button', text: 'Lauf speichern', disabled: 'disabled', onclick: function () {
+        if (!last || last.saved) return;
+        last.saved = true; saveBtn.disabled = true;
+        sv.runs.push({ n: last.n, setting: last.setting, label: last.label, summary: last.summary, table: last.table });
+        S.wall = S.wall || [];
+        addUnique(S.wall, { id: p.id + '-lauf-' + last.n, title: last.label, tag: p.cardTag || 'Datenkarte', text: (p.cardText || '') , table: last.table, kind: 'daten' }, 'id');
+        logEvent('lauf-gespeichert ' + p.id + ' ' + last.n); persist(); refreshRoom(); renderSaved(); toast('Lauf gespeichert. Die Datenkarte hängt an der Sammelwand.');
+      } });
+      var runBtn = el('button', { class: 'btn', type: 'button', text: p.runLabel || 'Versuch starten', onclick: function () {
+        var rng = mulberry32(hashStr(teamSeed() + '|' + p.id + '|' + sv.count));
+        var res = ROOM.models[p.model](JSON.parse(JSON.stringify(setting)), rng);
+        sv.count++;
+        last = { n: sv.count, setting: JSON.parse(JSON.stringify(setting)), label: 'Lauf ' + sv.count + ' (' + labelOf(setting) + ')', summary: res.summary, table: res.table, saved: false };
+        logEvent('lauf ' + p.id + ' ' + sv.count + ' ' + JSON.stringify(setting)); persist();
+        out.innerHTML = ''; out.appendChild(el('p', {}, [el('strong', { text: last.label })])); out.appendChild(tableEl(res.table));
+        if (p.dataNote) out.appendChild(el('p', { class: 'muted small', text: p.dataNote }));
+        saveBtn.disabled = false; fb.textContent = '';
+      } });
+      renderSaved();
+      body.push(el('div', { class: 'sim-wrap' }, [el('div', { class: 'sim-left' }, [ctlBox, el('div', { class: 'row' }, [runBtn, saveBtn]), savedBox]), out]),
+        el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Weiter', onclick: function () {
+          if (!needMet()) { wrong(fb, p.needText || 'Speichert zuerst genug Läufe.'); return; }
+          d.close(); solve(p, {});
+        } })]));
+    }
     if (p.type === 'freetext') {
       var ta = el('textarea', { rows: 5, placeholder: p.placeholder || 'Schreibt hier …' });
       if (S.answers[p.id]) ta.value = S.answers[p.id].text;
       else if (S.vars.draft && S.vars.draft[p.id]) ta.value = S.vars.draft[p.id];
       ta.addEventListener('input', function () { S.vars.draft = S.vars.draft || {}; S.vars.draft[p.id] = ta.value; persist(); });
-      body.push(ta, el('div', { class: 'row end' }, [el('button', { class: 'btn', text: p.button || 'Ins Logbuch eintragen', onclick: function () {
+      /* ab 2.0: Selbstkontrolle mit Haken (checks), danach optional ein Muster zum Vergleichen (sample) */
+      var fChecks = (p.checks || []).map(function (lab, i) { var c = el('input', { type: 'checkbox', id: 'ft-ok' + (i + 1) }); return { box: c, el: el('label', { class: 'check' }, [c, ' ' + lab]) }; });
+      var sampleBox = el('div', { class: 'ft-sample' }); sampleBox.hidden = true;
+      var ftBtn = el('button', { class: 'btn', text: p.button || 'Ins Logbuch eintragen', onclick: function () {
+        if (!sampleBox.hidden) { d.close(); solve(p, {}); return; }
         if (ta.value.trim().length < (p.minLength || 40)) { wrong(fb, 'Das ist noch etwas knapp. Schreibt ganze Sätze.'); return; }
-        S.answers[p.id] = { title: p.title, text: ta.value.trim() }; d.close(); solve(p, {});
-      } })]));
+        if (fChecks.some(function (c) { return !c.box.checked; })) { wrong(fb, 'Setzt zuerst ' + (fChecks.length > 1 ? 'beide Haken' : 'den Haken') + '.'); return; }
+        S.answers[p.id] = { title: p.title, text: ta.value.trim() }; persist();
+        if (p.sample) {
+          logEvent('freitext ' + p.id); fb.textContent = '';
+          sampleBox.appendChild(figureBlock(p.sampleFrom || 'kemal', p.sample)); sampleBox.hidden = false; ta.readOnly = true;
+          fChecks.forEach(function (c) { c.box.disabled = true; }); ftBtn.textContent = 'Weiter';
+          try { sampleBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+          return;
+        }
+        d.close(); solve(p, {});
+      } });
+      body.push(ta, fChecks.length ? el('div', { class: 'ft-checks' }, fChecks.map(function (c) { return c.el; })) : null, sampleBox, el('div', { class: 'row end' }, [ftBtn]));
     }
     body.push(fb);
-    body.push(el('div', { class: 'row' }, [el('button', { class: 'btn ghost small', type: 'button', text: 'Forscherakte öffnen (nachschlagen)', onclick: function () { openAkte(); } })]));
+    body.push(el('div', { class: 'row' }, [(ROOM && ROOM.wall) ? el('button', { class: 'btn ghost small', type: 'button', text: 'Sammelwand öffnen (nachschlagen)', onclick: function () { openWall(); } }) : el('button', { class: 'btn ghost small', type: 'button', text: 'Forscherakte öffnen (nachschlagen)', onclick: function () { openAkte(); } })]));
     if (p.hints && p.hints.length) body.push(hintArea(p, function () { rescueDialog(p, d); }));
-    d = openDialog({ cls: 'dlg-puzzle' + (refEl && p.type === 'freetext' ? ' has-ref' : ''), title: p.title, body: body, focus: p.type === 'code' || p.type === 'freetext' });
+    d = openDialog({ cls: 'dlg-puzzle' + (refEl && p.type === 'freetext' ? ' has-ref' : '') + (/^(objekt|widerspruch|sim)$/.test(p.type) ? ' dlg-wide' : ''), title: p.title, body: body, focus: p.type === 'code' || p.type === 'freetext' });
   }
 
   /* ---------------- Schloss-Animation (onSolve: { fx: 'lock', fxTitle, fxText }) ---------------- */
@@ -816,7 +1223,25 @@
     timer = setTimeout(function () { wrap.classList.add('done'); next.focus(); }, reduce ? 50 : 4600);
   }
 
+  /* Notfallöffnung einer Simulation: Kemal lässt die nötigen Läufe laufen und speichert sie (ab 2.0) */
+  function simAutoRuns(p) {
+    S.vars.sim = S.vars.sim || {};
+    var sv = S.vars.sim[p.id] = S.vars.sim[p.id] || { count: 0, runs: [] };
+    var nd = p.need || {}, per = nd.per, c0 = per ? p.controls.filter(function (c) { return c.id === per.control; })[0] : null;
+    var plan = [];
+    if (c0) c0.options.forEach(function (o) { for (var k = 0; k < per.min; k++) plan.push(o.id); });
+    while (plan.length < (nd.min || 1)) plan.push(c0 ? c0.options[0].id : null);
+    plan.forEach(function (v) {
+      var st = {}; p.controls.forEach(function (c) { st[c.id] = c.def || c.options[0].id; }); if (c0) st[c0.id] = v;
+      var res = ROOM.models[p.model](st, mulberry32(hashStr(teamSeed() + '|' + p.id + '|' + sv.count))); sv.count++;
+      var label = 'Lauf ' + sv.count + ' (' + p.controls.map(function (c) { return (c.short || c.label) + ': ' + c.options.filter(function (o) { return o.id === st[c.id]; })[0].label; }).join(' · ') + ')';
+      sv.runs.push({ n: sv.count, setting: st, label: label, summary: res.summary, table: res.table, auto: true });
+      S.wall = S.wall || []; addUnique(S.wall, { id: p.id + '-lauf-' + sv.count, title: label, tag: p.cardTag || 'Datenkarte', text: p.cardText || '', table: res.table, kind: 'daten' }, 'id');
+    });
+    persist();
+  }
   function solve(p, how) {
+    if (p.type === 'sim' && how.rescue) simAutoRuns(p);
     S.solved[p.id] = { t: new Date().toISOString(), hints: S.hints[p.id] || 0, rescue: !!how.rescue };
     applyEffects(p.onSolve || {});
     logEvent('gelöst ' + p.id + (how.rescue ? ' (Notfall)' : ''));
@@ -836,7 +1261,9 @@
   function applyEffects(eff, silent) {
     (eff.items || []).forEach(function (it) { if (addUnique(S.items, it, 'id') && !silent) toast('Neues Fundstück: ' + it.label); });
     (eff.docs || []).forEach(function (id) { var dc = ROOM.docs[id]; if (dc) addUnique(S.docs, { id: id, kind: 'doc', title: dc.title, text: dc.text, table: dc.table, audio: dc.audio }, 'id'); });
-    if (eff.evidence) addUnique(S.evidence, eff.evidence, 'id');
+    [].concat(eff.evidence || []).forEach(function (ev) { addUnique(S.evidence, ev, 'id'); });
+    if (eff.vars) { S.vars.story = S.vars.story || {}; Object.keys(eff.vars).forEach(function (k) { S.vars.story[k] = eff.vars[k]; }); }
+    (eff.wall || []).forEach(function (c) { S.wall = S.wall || []; addUnique(S.wall, c, 'id'); });
     if (eff.merksatz) addUnique(S.merksaetze, eff.merksatz);
     persist();
   }
@@ -850,21 +1277,23 @@
     [].concat(c.notSolved || []).forEach(function (id) { if (isSolved(id)) ok = false; });
     [].concat(c.missionDone || []).forEach(function (id) { if (!isSolved(id)) ok = false; });
     [].concat(c.unlocked || []).forEach(function (id) { if (!isUnlocked(id)) ok = false; });
+    [].concat(c.found || []).forEach(function (id) { if (!isFound(id)) ok = false; });        /* ab 2.0 */
+    [].concat(c.notFound || []).forEach(function (id) { if (isFound(id)) ok = false; });
     return ok;
   }
   function runAction(a) {
     if (!a) return;
     if (a.type === 'doc') {
       var dc = ROOM.docs[a.doc];
-      addUnique(S.docs, { id: a.doc, kind: 'doc', title: dc.title, text: dc.text, table: dc.table, audio: dc.audio }, 'id'); persist();
+      addUnique(S.docs, { id: a.doc, kind: 'doc', title: dc.title, text: dc.text, table: dc.table, audio: dc.audio }, 'id'); persist(); refreshRoom();
       openDialog({ cls: 'dlg-doc ' + (dc.style || 'paper'), title: dc.title, body: [dc.image ? zoomImg(dc.image, dc.title) : null].concat(docBody(dc)) });
     } else if (a.type === 'docs') {
       var blocks = [];
       a.docs.forEach(function (id) {
         var dd = ROOM.docs[id]; addUnique(S.docs, { id: id, kind: 'doc', title: dd.title, text: dd.text, table: dd.table, audio: dd.audio }, 'id');
-        blocks.push(el('h3', { text: dd.title })); docBody(dd).forEach(function (n) { if (n) blocks.push(n); });
+        blocks.push(el('h3', { text: dd.title })); docBody(dd, true).forEach(function (n) { if (n) blocks.push(n); });
       });
-      persist(); openDialog({ cls: 'dlg-doc paper', title: a.title, body: blocks });
+      persist(); refreshRoom(); openDialog({ cls: 'dlg-doc paper', title: a.title, body: blocks });
     } else if (a.type === 'puzzle') openPuzzle(ROOM.puzzles[a.puzzle]);
     else if (a.type === 'text') openDialog({ cls: 'dlg-world', body: paras(a.text) });
     else if (a.type === 'message') message(a.from, a.text);
@@ -889,10 +1318,10 @@
         S.seen['done-' + m.id] = true; S.solved[m.id] = { t: new Date().toISOString() }; persist();
         if (i < cur) return;
         var nx = ROOM.missions[i + 1];
-        var dlg = openDialog({ cls: 'dlg-done', title: m.doneTitle || 'Mission abgeschlossen', body: paras(m.doneText || '').concat([
-          nx ? el('p', { class: 'muted', text: (unlockMode() === 'auto' ? 'Für die nächste Mission beantwortet ihr zuerst das Do Now im Logbuch. Dann tippt unten auf „Nächste Mission“.' : 'Die nächste Mission schaltet eure Lehrkraft mit einem Code frei. Habt ihr den Code schon, tippt unten auf „Nächste Mission“.') }) : null,
+        var dlg = openDialog({ cls: 'dlg-done', title: m.doneTitle || 'Mission abgeschlossen', body: paras(m.doneText || '').concat(!nx && ROOM.end ? [el('h3', { text: ROOM.end.title })].concat(paras(ROOM.end.text)) : []).concat([
+          nx ? el('p', { class: 'muted', text: (unlockMode() === 'auto' ? (nx.sameLesson ? 'Die nächste Mission folgt in dieser Stunde. Tippt unten auf „Nächste Mission“.' : 'Für die nächste Mission beantwortet ihr zuerst das Do Now im Logbuch. Dann tippt unten auf „Nächste Mission“.') : 'Die nächste Mission schaltet eure Lehrkraft mit einem Code frei. Habt ihr den Code schon, tippt unten auf „Nächste Mission“.') }) : null,
           el('p', { class: 'muted', text: 'Notfall-Code für euer Logbuch: ' + makeCode() }),
-          el('div', { class: 'row end' }, [nx ? el('button', { class: 'btn ghost', text: 'Nächste Mission', onclick: function () { dlg.close(); lockScreen(nx, true); } }) : null, el('button', { class: 'btn ghost', text: 'Forscherakte', onclick: function () { dlg.close(); openAkte('beweise'); } }),
+          el('div', { class: 'row end' }, [!nx ? el('a', { class: 'btn ghost', href: BASE + 'index.html', text: 'Zur Startseite' }) : null, nx ? el('button', { class: 'btn ghost', text: 'Nächste Mission', onclick: function () { dlg.close(); lockScreen(nx, true); } }) : null, el('button', { class: 'btn ghost', text: 'Forscherakte', onclick: function () { dlg.close(); openAkte('beweise'); } }),
             el('button', { class: 'btn', text: 'Spielstand sichern', onclick: function () { saveFile(); toast('Gesichert. Ladet die Datei in WebWeaver hoch.', 6000); } })])]) });
       }
     });
@@ -909,23 +1338,23 @@
     return null;
   }
   function unlockMode() {
-    var o = null; try { o = sessionStorage.getItem('tresor.modus'); } catch (e) {}
+    var o = null; try { o = sessionStorage.getItem('mendel.modus'); } catch (e) {}
     return o || (ROOM && ROOM.unlockMode) || 'code';
   }
   function startScreen(m, closable) {
     var cb = el('input', { type: 'checkbox', id: 'start-ok' });
     var fb = el('div', { class: 'feedback', role: 'status' });
     function go() {
-      if (!cb.checked) { wrong(fb, 'Beantwortet zuerst das Do Now im Logbuch und setzt dann den Haken.'); return; }
+      if (!m.sameLesson && !cb.checked) { wrong(fb, 'Beantwortet zuerst das Do Now im Logbuch und setzt dann den Haken.'); return; }
       S.unlocked.push(m.id); logEvent('freigeschaltet ' + m.id + ' (ohne Code)'); d.close(); refreshRoom(); intro(m);
     }
     var d = openDialog({ cls: 'dlg-lock', closable: closable ? undefined : false, title: ROOM.title, body: [
       el('p', { text: 'Bereit für „' + m.title + '“?' }),
-      el('p', { class: 'paper-task' }, [el('strong', { text: 'Zuerst auf Papier: ' }), 'Beantwortet das Do Now dieser Stunde im Feld „Vorher“ eures Logbuchs.']),
-      el('label', { class: 'check' }, [cb, ' Wir haben das Do Now im Logbuch beantwortet.']), fb,
+      m.sameLesson ? el('p', { class: 'muted', text: 'Diese Mission folgt in derselben Stunde. Ihr könnt direkt weitermachen.' }) : el('p', { class: 'paper-task' }, [el('strong', { text: 'Zuerst auf Papier: ' }), 'Beantwortet das Do Now dieser Stunde im Feld „Vorher“ eures Logbuchs.']),
+      m.sameLesson ? null : el('label', { class: 'check' }, [cb, ' Wir haben das Do Now im Logbuch beantwortet.']), fb,
       el('div', { class: 'row' }, [el('button', { class: 'btn', text: 'Mission starten', onclick: go }),
         closable ? el('button', { class: 'btn ghost small', text: 'Abbrechen', onclick: function () { d.close(); } }) : null,
-        el('a', { class: 'btn ghost small', href: BASE + 'index.html', text: 'Zurück zum Museumsplan' })])
+        el('a', { class: 'btn ghost small', href: BASE + 'index.html', text: 'Zurück zur Startseite' })])
     ] });
   }
   function lockScreen(m, closable) {
@@ -940,7 +1369,7 @@
     var d = openDialog({ cls: 'dlg-lock', closable: closable ? undefined : false, title: ROOM.title, body: [
       el('p', { text: 'Die Tür ist verschlossen. Gebt den Code für „' + m.title + '“ ein.' }),
       el('div', { class: 'row' }, [inp, el('button', { class: 'btn', text: 'Aufschließen', onclick: go })]), fb,
-      el('div', { class: 'row' }, [closable ? el('button', { class: 'btn ghost small', text: 'Abbrechen', onclick: function () { d.close(); } }) : null, el('a', { class: 'btn ghost small', href: BASE + 'index.html', text: 'Zurück zum Museumsplan' })])
+      el('div', { class: 'row' }, [closable ? el('button', { class: 'btn ghost small', text: 'Abbrechen', onclick: function () { d.close(); } }) : null, el('a', { class: 'btn ghost small', href: BASE + 'index.html', text: 'Zurück zur Startseite' })])
     ] });
   }
   function intro(m) {
@@ -954,12 +1383,18 @@
   function refreshRoom() {
     if (!ROOM || !invEl) return;
     invEl.innerHTML = '';
+    if (ROOM.wall) {   /* ab 2.0: In Räumen mit Sammelwand zeigt die Leiste die Zahl der Karten an der Wand */
+      var nw = wallCards().length;
+      invEl.appendChild(el('span', { class: 'inv-label', text: 'Sammelwand' }));
+      invEl.appendChild(nw ? el('button', { class: 'inv-item', text: nw + (nw === 1 ? ' Karte' : ' Karten'), onclick: function () { openWall(); } }) : el('span', { class: 'inv-empty', text: 'noch leer' }));
+      return;
+    }
     invEl.appendChild(el('span', { class: 'inv-label', text: 'Fundstücke' }));
     if (!S.items.length) invEl.appendChild(el('span', { class: 'inv-empty', text: 'noch keine' }));
     S.items.forEach(function (it) { invEl.appendChild(el('button', { class: 'inv-item', text: it.label, onclick: function () { openAkte('funde'); } })); });
   }
   function buildRoom() {
-    document.title = ROOM.title + ' · Der Tresor der Zeit';
+    document.title = ROOM.title + ' · Hundezuchtverein';
     var stage = el('div', { class: 'stage' + (ROOM.flashlight ? ' dark-mode' : '') });
     sceneEl = el('div', { class: 'scene' }, [el('img', { class: 'scene-bg', src: ROOM.image, alt: ROOM.imageAlt || '' })]);
     ROOM.hotspots.forEach(function (h) {
@@ -995,13 +1430,14 @@
         el('button', { class: 'hud-btn', text: 'Absuchen', onclick: function () {
           hotEls.forEach(function (h) { h.classList.add('reveal'); }); setTimeout(function () { hotEls.forEach(function (h) { h.classList.remove('reveal'); }); }, 2600);
         } }),
+        ROOM.wall ? el('button', { class: 'hud-btn', text: 'Sammelwand', onclick: function () { openWall(); } }) : null,
         el('button', { class: 'hud-btn', text: 'Akte', onclick: function () { openAkte(); } }),
-        el('button', { class: 'hud-btn', text: 'Menü', onclick: function () { openMenu(el('a', { class: 'btn ghost', href: BASE + 'index.html', text: 'Zum Museumsplan' })); } })
+        el('button', { class: 'hud-btn', text: 'Menü', onclick: function () { openMenu(el('a', { class: 'btn ghost', href: BASE + 'index.html', text: 'Zur Startseite' })); } })
       ])
     ]);
     invEl = el('div', { class: 'inv', 'aria-label': 'Fundstücke' });
     stage.appendChild(hud); stage.appendChild(invEl);
-    stage.appendChild(el('div', { class: 'rotate', text: 'Haltet das iPad bitte quer.' }));
+    document.body.appendChild(el('div', { class: 'rotate', text: 'Haltet das iPad bitte quer.' }));   /* direkt an der Seite, sonst liegt er unter den Dialogen */
     document.body.appendChild(stage);
     function fit() {
       var ratio = ROOM.size[0] / ROOM.size[1], vw = stage.clientWidth, vh = stage.clientHeight;
@@ -1021,7 +1457,7 @@
       ROOM = def; BASE = def.base || '../';
       document.addEventListener('DOMContentLoaded', function () {
         removePreviewHint();
-        if (!load() || !sessionStorage.getItem('tresor.confirmed')) { location.href = BASE + 'index.html'; return; }
+        if (!load() || !sessionStorage.getItem('mendel.confirmed')) { location.href = BASE + 'index.html'; return; }
         // Wirkungen gelöster Rätsel erneut anwenden (z. B. nach Notfall-Code), ohne Meldungen
         Object.keys(ROOM.puzzles).forEach(function (k) { if (isSolved(k)) applyEffects(ROOM.puzzles[k].onSolve || {}, true); });
         buildRoom();
@@ -1041,13 +1477,25 @@
     }
   };
 
+  /* ---------------- Einstiegsstory (einmal pro Team, nach „Fall übernehmen“) ---------------- */
+  function playIntro(pages) {
+    if (!pages || !pages.length || S.seen.storyIntro) return;
+    S.seen.storyIntro = true; persist();
+    var i = 0;
+    (function next() {
+      if (i >= pages.length) return;
+      var pg = pages[i++];
+      message(pg.from, String(pg.text).replace(/\{team\}/g, S.team.join(', ')), next, false);
+    })();
+  }
+
   /* ---------------- Startseite ---------------- */
   function buildStart(def) {
     var root = document.getElementById('start');
     function render() {
       root.innerHTML = '';
       var st = load();
-      root.appendChild(el('div', { class: 'start-head' }, [el('h1', { text: 'Der Tresor der Zeit' }), el('p', { class: 'sub', text: 'Ein Fall für das Junior-Forschungsteam des Museums' })]));
+      root.appendChild(el('div', { class: 'start-head' }, [el('h1', { text: 'Der Hundezuchtverein' }), el('p', { class: 'sub', text: 'Ein Fall für Gutachterinnen und Gutachter' })]));
       if (!st) {
         var inputs = [0, 1, 2].map(function (i) { return el('input', { type: 'text', autocomplete: 'off', placeholder: i < 2 ? 'Vorname ' + (i + 1) : 'Vorname 3 (optional)', 'aria-label': 'Vorname ' + (i + 1) }); });
         var fb = el('div', { class: 'feedback', role: 'status' });
@@ -1058,10 +1506,10 @@
             el('button', { class: 'btn', text: 'Fall übernehmen', onclick: function () {
               var team = inputs.map(function (i) { return i.value.trim(); }).filter(Boolean);
               if (!team.length) { wrong(fb, 'Tragt mindestens einen Vornamen ein.'); return; }
-              S = blank(team); persist(); sessionStorage.setItem('tresor.confirmed', '1'); render();
+              S = blank(team); persist(); sessionStorage.setItem('mendel.confirmed', '1'); render(); playIntro(def.intro);
             } }), fb])),
           el('section', { class: 'panel' }, [el('h2', { text: 'Weiterspielen' }), el('p', { class: 'muted', text: 'Ladet eure Spielstand-Datei aus WebWeaver.' }),
-            el('button', { class: 'btn', text: 'Spielstand laden', onclick: function () { pickFile(function (err) { if (err) wrong(fb2, err); else { sessionStorage.setItem('tresor.confirmed', '1'); render(); } }); } }),
+            el('button', { class: 'btn', text: 'Spielstand laden', onclick: function () { pickFile(function (err) { if (err) wrong(fb2, err); else { sessionStorage.setItem('mendel.confirmed', '1'); render(); } }); } }),
             el('h3', { text: 'Datei verloren?' }), codeIn,
             el('button', { class: 'btn ghost', text: 'Mit Notfall-Code weiterspielen', onclick: function () {
               var ids = readCode(codeIn.value);
@@ -1069,19 +1517,19 @@
               if (!ids) { wrong(fb2, 'Dieser Code ist nicht gültig. Prüft jedes Zeichen.'); return; }
               S = blank(team.length ? team : ['Team']);
               ids.forEach(function (id) { if (/^m/.test(id)) S.unlocked.push(id); else S.solved[id] = { t: 'code' }; });
-              S.seen.restoredFromCode = true; persist(); sessionStorage.setItem('tresor.confirmed', '1'); render();
+              S.seen.restoredFromCode = true; persist(); sessionStorage.setItem('mendel.confirmed', '1'); render();
             } }), fb2])
         ]));
         return;
       }
       S = st;
-      if (!sessionStorage.getItem('tresor.confirmed')) {
+      if (!sessionStorage.getItem('mendel.confirmed')) {
         var age = Math.round((Date.now() - new Date(S.log.length ? S.log[S.log.length - 1].t : S.created).getTime()) / 3600000);
         root.appendChild(el('section', { class: 'panel warn' }, [
           el('h2', { text: 'Seid ihr Team ' + S.team.join(', ') + '?' }),
           el('p', { text: 'Auf diesem iPad liegt noch ein Spielstand' + (age >= 1 ? ' von vor etwa ' + age + ' Stunde' + (age === 1 ? '' : 'n') : '') + '. Vielleicht hat ein anderes Team vergessen, das Spiel zu beenden.' }),
           el('div', { class: 'row' }, [
-            el('button', { class: 'btn', text: 'Ja, das sind wir', onclick: function () { sessionStorage.setItem('tresor.confirmed', '1'); render(); } }),
+            el('button', { class: 'btn', text: 'Ja, das sind wir', onclick: function () { sessionStorage.setItem('mendel.confirmed', '1'); render(); } }),
             el('button', { class: 'btn ghost', text: 'Nein, wir sind ein anderes Team', onclick: function () {
               var dd = openDialog({ title: 'Fremden Spielstand entfernen', body: [
                 el('p', { text: 'Sichert den Spielstand des anderen Teams zuerst, damit er nicht verloren geht. Gebt die Datei danach eurer Lehrkraft.' }),

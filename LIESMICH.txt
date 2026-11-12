@@ -1,33 +1,39 @@
-Genetik-Labor · Probe-Raum „Das Zuchtbuch“ · Engine 1.9 · Probe V2 · Stand 14.10.2026
-=====================================================================================
+Der Hundezuchtverein · Testraum Mendel · Stand 12.11.2026 (Fassung V11)
+=======================================================================
+Eigenständiges Spiel (kein Evolutions-Inhalt). Testet die Engine für das Evolutionsspiel.
+Engine: Kopie von Engine 2.0 mit eigenem Speicher und Design (Akten-Look), erweitert um Fortschritt, Versuche und Auswertung in der Gutachterakte.
 
-WAS HIER LIEGT
-  probe/index.html             Startseite (eigene Seite, eigener Spielstand)
-  probe/zuchtbuch/index.html   Raum „Das Zuchtbuch“ mit P1 (pm1) und P2 (pm2)
-  probe/zuchtbuch/probe.js     Inhalte, ERZEUGT aus probe.src.js (Lösungen nur als Hash)
-  probe/engine/                Kopie der Engine 1.9 aus tresor-test mit Probe-Zusätzen
-  tools/build.js               macht aus probe.src.js die Datei probe.js
+STRUKTUR: drei Wochen, je eine Spielstunde (iPad) und eine Unterrichtsstunde. Das Gutachten hat sechs Teile.
+  index.html                       Startseite mit Einstiegsstory und drei Räumen
+  raum1/  Das Vereinsbüro          Woche 1 · Merkmalsblatt, Brief, Tabelle, Anteil in Prozent · Teil 1
+  raum2/  Das Zuchtlabor           Woche 2 · simulierte Zuchtversuche (Reinzucht, Kreuzung, zweite Generation, Testverpaarung) · Teil 3
+  raum3/  Das Gartenbuch           Woche 3 · Mendels Methode und Zahlen, Stammbaum mit Genotypen, Einspruch, Skizze mit Modell · Teil 5
+  auswertung.html                  NUR FÜR DIE LEHRKRAFT: Spielstand-Dateien der Teams auswerten (Klassenübersicht, Zeiten, Tipps, Fehlversuche, Laborläufe)
+  engine/, bilder/, figuren/       Engine mit Design, Bilder (KI-Bilder und selbst gezeichneter Stammbaum), Figuren
+  build.py                         erzeugt raumN/raumN.js aus _quelle/raumN.src.js
+NICHT im öffentlichen Repo: _quelle/ (Lösungen im Klartext, steht in .gitignore)
 
-NICHT auf GitHub (siehe .gitignore): quellen/ mit probe.src.js, Lösungsdatei, Testskript.
+SCHREIBWEISE DER ALLELE
+  Teil 2 und Zuchtlabor (Raum 2): K (kurz) und l (lang), wie auf der Modellkarte M4 aus Teil 2.
+  Ab Teil 4 und in Raum 3: K und k (Fachschreibweise: dominant groß, rezessiv klein). Das Spiel erklärt den Wechsel in Raum 3 selbst.
 
-ADRESSE (GitHub Pages)
-  https://phenox95.github.io/genetik/probe/
-  Neu anfangen: https://phenox95.github.io/genetik/probe/?neu=1
-  Fassung: im Raum „Menü“, unten „Fassung: Engine 1.9 · Probe V2“
+SIMULATION UND MODELL
+  Das Zuchtlabor simuliert Verpaarungen mit einem Zufallsverfahren (fester Startwert je Team, Neuladen ändert die Zahlen nicht).
+  Das Modell ist vereinfacht: ein Gen mit zwei Allelen. Das steht im Spiel, in den Logbüchern und im Lehrkraft-Blatt.
+  Die Genotypen der Tiere stehen im Klartext in raum2/raum2.js, die Lösungen der Auswahlfragen als Hash.
 
-UNABHÄNGIG VOM TRESOR
-  Spielstand unter „probe-genetik.v2“ (Tresor: „tresor.v1“). Dateien heißen
-  probe_<Vornamen>_<Datum>.json. Eine Tresor-Datei lässt sich hier nicht laden.
+AKTE (Gutachterakte)
+  Reiter Fall, Fortschritt (Gesamtfortschritt über alle Räume), Versuche, Dokumente, Archiv, Auswertung. Leere Reiter (Fundstücke, Beweisakte) werden ausgeblendet.
 
-BILDER (folgen, Platzhalter sind eingebaut, kein Text auf Bildern)
-  probe/bilder/buero.jpg      Raumbild „Büro des Zuchtvereins“ (bis dahin beschriftete Tippflächen)
-  probe/bilder/wurf-neu.jpg   nach dem Schloss in P1: zwei kurzhaarige Eltern, ein langhaariger Welpe
-  probe/bilder/titel.jpg      Hintergrund der Startseite (optional)
+EIGENER SPEICHER
+  Spielstand unter „mendel.v1“, das Evolutionsspiel nutzt „tresor.v1“. Alle Räume teilen sich einen Spielstand.
 
-ZUSÄTZE GEGENÜBER ENGINE 1.9 (nur in dieser Kopie, Raum 1 und 2 unberührt)
-  - eigener Speicherplatz, Fassung, Titel, Dateiname (Einstellungen store, build, filePrefix)
-  - Tabelle: Kurzlabel je Spalte für die Rückmeldung (short: 'E1')
-  - onSolve.image: Bild zwischen message und message2
-  - Farben für Behauptung, Widerspruch und die vier Tabellenzustände; Laborfarben
-  - Notfall-Code erkennt Missions-IDs pm1, pm2 (vorher nur IDs mit „m…“)
-  - REGISTRY hinten ergänzt: pm1, pm2, dann die sieben Rätsel-IDs
+EINSPIELEN
+  1. Im GitHub-Projekt diese Dateien ersetzen oder hochladen (ohne _quelle). Veraltete Dateien löschen:
+     Ordner raum/ (alt), bilder/vereinsheim.svg, engine/fonts/bitter-latin-600-normal.woff2, engine/fonts/bitter-latin-700-normal.woff2, engine/fonts/LICENSE-bitter.txt
+  2. Nach etwa 1 Minute auf dem iPad öffnen, vor jedem neuen Durchlauf mit ?neu=1 am Ende der Adresse.
+  3. Im Raum auf „Menü“: ganz unten steht die Fassung (Testraum Mendel V11).
+  Hinweis: Haben Teams das Zuchtlabor schon mit einer älteren Fassung gespielt, bleiben ihre Rätsel gelöst, gespeicherte Läufe tragen die alten Namen.
+
+STAND DER ABNAHME (automatischer Test, Chromium): drei Räume mit Fehlversuchen und Akte durchgespielt, 41 von 41 Prüfschritten, keine Browserfehler.
+NICHT getestet: echtes iPad (Safari), Smartphone-Anzeige, Spielstand-Upload nach WebWeaver, Probe mit einem Team.

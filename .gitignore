@@ -1,6 +1,8 @@
-# Nicht auf GitHub: Quellen mit Klartext-Lösungen, Lösungsdatei, Auftrag
-*.src.js
+# Nicht auf GitHub: Quellen mit Klartext-Lösungen, Lösungsdateien, Aufträge
+_quelle/
 quellen/
+*.src.js
 Loesung*
 Auftrag*
+__pycache__/
 node_modules/
